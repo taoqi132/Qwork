@@ -1,0 +1,31 @@
+name: Windows checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run test:legacy
+      - run: npm run build
+      - run: npm run smoke
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: electron-smoke-results
+          path: |
+            work/smoke/result.json
+            work/smoke/failure.txt
+            work/smoke/*.png
+          if-no-files-found: ignore

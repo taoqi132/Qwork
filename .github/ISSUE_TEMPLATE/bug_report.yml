@@ -1,0 +1,29 @@
+name: Bug report / 问题反馈
+description: Report a reproducible issue / 提交可复现的问题
+body:
+  - type: markdown
+    attributes:
+      value: "Do not include API keys, CLI credentials, private files or unredacted logs. 请勿提交密钥、CLI 凭据、私人文件或未脱敏日志。"
+  - type: input
+    id: environment
+    attributes:
+      label: Environment / 环境
+      description: Windows version, Qwork version, agent CLI and version
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps and actual result / 复现步骤与实际结果
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result / 期望结果
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Redacted evidence / 脱敏后的截图或诊断信息

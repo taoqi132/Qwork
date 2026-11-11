@@ -1,0 +1,78 @@
+{
+  "name": "qwork",
+  "version": "0.1.3",
+  "private": true,
+  "type": "module",
+  "description": "Qwork — 多Agent协作工作台",
+  "author": "Qwork contributors",
+  "license": "Apache-2.0",
+  "main": "dist/main/index.cjs",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "npm run build && electron .",
+    "start": "electron .",
+    "build": "node scripts/build.mjs",
+    "typecheck": "vue-tsc --noEmit",
+    "test": "node scripts/test.mjs",
+    "test:legacy": "node --test legacy/test/agents/local-agent-readiness.test.cjs legacy/test/agents/agent-permission-policy.test.cjs",
+    "test:upstream": "node --test --test-timeout=60000 legacy/test/agents/cli/*.test.cjs",
+    "check": "npm run typecheck && npm test && npm run build",
+    "pack": "npm run build && electron-builder --win --x64 --dir",
+    "dist:win": "npm run build && electron-builder --win nsis --x64",
+    "smoke": "node scripts/smoke.mjs",
+    "doctor": "node dist/main/doctor.cjs",
+    "screenshots": "npm run build && node scripts/smoke.mjs work/docs-capture --docs"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "0.23.0",
+    "@streamparser/json": "0.0.22",
+    "dompurify": "^3.4.13",
+    "marked": "^9.0.0",
+    "vue": "^3.4.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "electron": "39.8.10",
+    "electron-builder": "26.15.3",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.7.0",
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10",
+    "vue-tsc": "^3.0.0"
+  },
+  "build": {
+    "appId": "io.qwork.desktop",
+    "productName": "Qwork",
+    "artifactName": "Qwork-Setup-${version}-${arch}.${ext}",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "legacy/src/**/*",
+      "assets/qwork.ico",
+      "package.json",
+      "LICENSE",
+      "NOTICE"
+    ],
+    "npmRebuild": false,
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/qwork.ico",
+      "signAndEditExecutable": true
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}

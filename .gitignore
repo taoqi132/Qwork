@@ -1,0 +1,21 @@
+node_modules/
+dist/
+release/
+coverage/
+.env*
+!.env.example
+*.log
+.DS_Store
+work/
+.qwork/
+
+# Local editor, credentials and export archives
+.vscode/
+.idea/
+*.pem
+*.key
+*.pfx
+*.p12
+*.zip
+*.7z
+Thumbs.db
