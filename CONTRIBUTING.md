@@ -4,9 +4,9 @@
 
 ## Start locally / 本地开发
 
-Use Node.js 22.12+ and npm. Run `npm ci` and `npm run dev`, or open `Start-Qwork.bat`. See [architecture](docs/architecture.md) before changing runtime boundaries.
+Use Node.js 22.12+ and npm. Run `npm ci` and `npm run dev`, or open `Start-Qwork.bat`.
 
-使用 Node.js 22.12+ 与 npm，运行 `npm ci`、`npm run dev`，或双击根目录 BAT。修改执行边界前请先阅读[架构说明](docs/architecture.md)。
+使用 Node.js 22.12+ 与 npm，运行 `npm ci`、`npm run dev`，或双击根目录 BAT。
 
 ## Scope / 贡献方向
 

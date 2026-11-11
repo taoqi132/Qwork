@@ -17,7 +17,7 @@ Turn project materials into a proposal, report or presentation—with your local
 ![Electron](https://img.shields.io/badge/Desktop-Electron-555555)
 ![License](https://img.shields.io/badge/License-Apache--2.0-242424)
 
-[Get started](#get-started) · [Choose a workflow](#choose-a-workflow) · [See the experience](#see-the-experience) · [How it works](docs/architecture.md)
+[Get started](#get-started) · [Choose a workflow](#choose-a-workflow) · [See the experience](#see-the-experience)
 
 </div>
 
@@ -166,14 +166,14 @@ src/shared/     Typed contracts and language resources
 legacy/         Attributed Meldwork CLI compatibility modules
 test/           Workflow, process, permission and notification tests
 examples/       Briefs for the four modes
-docs/           Architecture, verification notes and bilingual screenshots
+docs/screenshots/  Images used by the English and Chinese READMEs
 scripts/        Build, test and screenshot tooling
 .github/        Windows CI, issue form and PR template
 ```
 
-[Architecture](docs/architecture.md) · [Clarification & notifications](docs/clarification.md) · [Failure handling](docs/resilience-0.1.2.md) · [Validation](docs/validation.md) · [Contributing](CONTRIBUTING.md) · [GitHub presentation kit](docs/github-presentation.md)
+[Contributing](CONTRIBUTING.md)
 
-**Validation:** 101 Qwork tests, type checks, production builds and Electron fixture acceptance passed locally. Live provider coverage is tracked separately in the [validation record](docs/validation.md).
+**Validation:** 101 Qwork tests, type checks, production builds and Electron fixture acceptance passed locally. These checks use fixture agents; live provider and file-format coverage remains incomplete.
 
 <details>
 <summary>Developer checks and screenshot generation</summary>
@@ -201,6 +201,4 @@ If Qwork fits your workflow, a star helps others discover it.
 
 Qwork is an independent derivative of the [Meldwork](https://github.com/Ryder-Sun/Meldwork) CLI compatibility layer, with a redesigned Vue/TypeScript interface and orchestration workflow. Original copyright belongs to Ryder-MHumble and Meldwork contributors. Agent names do not imply endorsement.
 
-Apache-2.0 notices are preserved in [LICENSE](LICENSE) and [NOTICE](NOTICE). The [upstream manifest](docs/upstream-manifest.json) records retained modules and modifications. Generated dependencies, user data and release binaries are excluded from Git.
-
-[0.1.3 release notes / 发布说明](docs/release-0.1.3.md) · [Local Git maintenance / 本地 Git 维护](docs/git-maintenance.md)
+Apache-2.0 notices are preserved in [LICENSE](LICENSE) and [NOTICE](NOTICE). Generated dependencies, user data and release binaries are excluded from Git.

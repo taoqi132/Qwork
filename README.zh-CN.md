@@ -17,7 +17,7 @@
 ![Electron](https://img.shields.io/badge/Desktop-Electron-555555)
 ![License](https://img.shields.io/badge/License-Apache--2.0-242424)
 
-[开始使用](#开始使用) · [选择协作方式](#选择协作方式) · [看看实际体验](#看看实际体验) · [了解架构](docs/architecture.md)
+[开始使用](#开始使用) · [选择协作方式](#选择协作方式) · [看看实际体验](#看看实际体验)
 
 </div>
 
@@ -166,14 +166,14 @@ src/shared/     类型协议与语言资源
 legacy/         保留来源声明的 Meldwork CLI 兼容模块
 test/           工作流、进程、权限与通知测试
 examples/       四种模式的任务示例
-docs/           架构、验证说明与中英文截图
+docs/screenshots/  中英文 README 使用的图片
 scripts/        构建、测试与截图工具
 .github/        Windows CI、Issue 表单与 PR 模板
 ```
 
-[架构说明](docs/architecture.md) · [需求澄清与通知](docs/clarification.md) · [异常处理](docs/resilience-0.1.2.md) · [验证记录](docs/validation.md) · [参与贡献](CONTRIBUTING.md) · [GitHub 展示文案](docs/github-presentation.md)
+[参与贡献](CONTRIBUTING.md)
 
-**当前验证：** 101 项 Qwork 测试、类型检查、生产构建和模拟 Agent 的 Electron 验收通过。真实模型验证单独记录，详见[验证记录](docs/validation.md)。
+**当前验证：** 101 项 Qwork 测试、类型检查、生产构建和模拟 Agent 的 Electron 验收通过。这些检查使用模拟 Agent；真实提供者和文件格式的验证覆盖仍不完整。
 
 <details>
 <summary>开发检查与截图生成</summary>
@@ -201,6 +201,4 @@ npm run screenshots
 
 Qwork 基于 [Meldwork](https://github.com/Ryder-Sun/Meldwork) 的 CLI 兼容层二次开发，重新设计了 Vue／TypeScript 界面与协作编排。原版权归 Ryder-MHumble 和 Meldwork 贡献者所有。各 Agent 名称不代表官方合作或背书。
 
-[LICENSE](LICENSE) 与 [NOTICE](NOTICE) 保留 Apache-2.0 许可及来源声明；[上游清单](docs/upstream-manifest.json)记录保留模块与修改。依赖、用户数据与发布二进制不提交 Git。
-
-[0.1.3 release notes / 发布说明](docs/release-0.1.3.md) · [Local Git maintenance / 本地 Git 维护](docs/git-maintenance.md)
+[LICENSE](LICENSE) 与 [NOTICE](NOTICE) 保留 Apache-2.0 许可及来源声明。依赖、用户数据与发布二进制不提交 Git。
