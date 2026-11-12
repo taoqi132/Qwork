@@ -103,7 +103,7 @@ export class Workflow {
     }
     try{this.changed()}catch{/* a closed renderer does not corrupt the durable state */}
   }
-  private policy(){const s=this.store.state.settings;return {startupMs:(s.startupTimeoutSeconds||90)*1000,idleMs:(s.idleTimeoutSeconds||180)*1000,progressMs:(s.progressTimeoutSeconds||300)*1000}}
+  private policy(){const s=this.store.state.settings;return {executionIdleMs:(s.noExecutionTimeoutMinutes??5)*60000}}
   private eligible(run:Run){return run.participants.filter(k=>!run.excludedAgents?.some(a=>a.kind===k))}
   private requireTeam(run:Run){if(run.settings.kind==='group'&&this.eligible(run).length<2)throw new TeamUnavailable()}
   private quarantine(run:Run,kind:AgentKind,error:unknown){

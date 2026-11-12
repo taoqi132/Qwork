@@ -1,3 +1,4 @@
+import {AgentDetection} from './agent-detection'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import { AGENT_KINDS, LABELS, type AgentInfo, type AgentKind, type Runner } from '../shared/types'
@@ -15,8 +16,8 @@ export const redact=(text:unknown):string=>redactSecrets(String(text||''))
 export class AgentService {
   private detected=new Map<AgentKind,any>()
   private infos:AgentInfo[]=AGENT_KINDS.map(kind=>({kind,label:LABELS[kind],installed:false,compatible:false,version:'',credential:'unknown',source:'未检测'}))
-  private refreshPromise:Promise<AgentInfo[]>|null=null
-  constructor(private storageRoot:string,private getWorkBuddyModelId:()=>string=()=> '',private getAllowWeb:()=>boolean=()=>true,private getModels:()=>Partial<Record<AgentKind,string>>=()=>({})){}
+  readonly detection:AgentDetection
+  constructor(private storageRoot:string,private getWorkBuddyModelId:()=>string=()=> '',private getAllowWeb:()=>boolean=()=>true,private getModels:()=>Partial<Record<AgentKind,string>>=()=>({}),changed:()=>void=()=>{}){this.detection=new AgentDetection(changed)}
   workBuddySettings(){return workBuddySettings({env:process.env,modelId:this.getWorkBuddyModelId()})}
   get catalog(){return structuredClone(this.infos)}
   recordConnection(kind:AgentKind,passed:boolean,error=''){
@@ -24,8 +25,7 @@ export class AgentService {
     if(info){info.testedAt=new Date().toISOString();info.error=passed?undefined:error;if(passed){info.credential='ready';info.source='connection-test'}}
   }
   async refresh():Promise<AgentInfo[]>{
-    if(this.refreshPromise)return this.refreshPromise
-    this.refreshPromise=this.detect().finally(()=>{this.refreshPromise=null});return this.refreshPromise
+    return this.detection.run(()=>this.detect())
   }
   private async detect(){
     const found=await cli.detectAgents({kinds:AGENT_KINDS})
@@ -66,6 +66,7 @@ export class AgentService {
         onActivity:()=>input.onActivity?.(),
         onProgress:()=>input.onActivity?.(),
         onEvent:(event:any)=>{
+          if(['reasoning_summary','plan'].includes(event.type))input.onRuntimeEvent?.({type:'status',summary:'已收到中间执行反馈',progress:true})
           if(event.type==='answer_delta')input.onProgress(String(event.text||event.delta||''))
           const signal=publicRuntimeSignal(event,redact)
           if(signal)input.onRuntimeEvent?.(signal)

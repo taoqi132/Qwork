@@ -6,7 +6,7 @@ export function publicRuntimeSignal(event:{type?:string;title?:string;summary?:s
  if(!['status','tool_start','tool_update','tool_result_summary','warning'].includes(type||''))return null
  const labels:Record<string,string>={status:'CLI 状态已更新',tool_start:'开始调用工具',tool_update:'工具仍在执行',tool_result_summary:'工具执行已返回',warning:'CLI 提醒'}
  const safe=(value:string)=>clean(value).replace(/(?:[A-Za-z]:[\\/]|\/Users\/|\/home\/)[^\s"'<>]+/g,'[local path]').slice(0,1000)
- return {type:type as RuntimeSignal['type'],summary:labels[type!],detail:safe([event.title,event.summary,event.status].filter(Boolean).join(' · ')),progress:type==='tool_start'||type==='tool_result_summary'}
+ return {type:type as RuntimeSignal['type'],summary:labels[type!],detail:safe([event.title,event.summary,event.status].filter(Boolean).join(' · ')),progress:type==='tool_start'||type==='tool_update'||type==='tool_result_summary'}
 }
 export function diagnosticFailure(text:string):RuntimeSignal|null{
  // Never publish stderr itself: partial credentials may straddle chunks.

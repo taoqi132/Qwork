@@ -25,8 +25,9 @@ let quitting=false
 const connectionTests=new Set<string>()
 const renderer=path.join(__dirname,'../renderer/index.html')
 const rendererUrl=pathToFileURL(renderer).href
+let mockDetection:Snapshot['agentDetection']={status:'ready'}
 let mockCatalog:AgentInfo[]|null=null
-function snapshot():Snapshot{return {...structuredClone(store.state),agents:mockCatalog||agents.catalog}}
+function snapshot():Snapshot{return {...structuredClone(store.state),agents:mockCatalog||agents.catalog,agentDetection:mockCatalog?mockDetection:agents.detection.state}}
 const decisionNotifications=new DecisionNotifications(()=>{
   if(smoke||packageCheck||!Notification.isSupported())return undefined
   return new Notification({title:'Qwork · '+translate('需要你的决定',store.state.settings.locale),body:translate('任务需要你补充信息或作出决定，点击查看。',store.state.settings.locale),icon:path.join(__dirname,'../../assets/qwork.ico')})
@@ -47,6 +48,7 @@ function changed(){
 
 function assertIdle(groupId:string){if(workflow.busy(groupId))throw new Error('请先停止当前任务再修改此设置')}
 function verifyMembers(input:GroupInput){
+  if(!mockCatalog&&agents.detection.state.status!=='ready')throw new Error(agents.detection.state.status==='failed'?'Agent 检测失败，请重试':'正在查找本机 Agent，请稍候')
   const ready=new Set((mockCatalog||agents.catalog).filter(a=>a.installed&&a.compatible).map(a=>a.kind))
   if(input.agents.some(k=>!ready.has(k)))throw new Error('请先在设置中安装或检测所选 Agent')
 }
@@ -58,7 +60,7 @@ function handle(name:string,fn:(...args:any[])=>unknown){
 }
 function register(){
   handle('get',()=>snapshot())
-  handle('refresh',async()=>{if(!mockCatalog)await agents.refresh();changed();return snapshot()})
+  handle('refresh',async()=>{if(!mockCatalog)await agents.refresh();else mockDetection={status:'ready'};changed();return snapshot()})
   handle('settings',(raw:unknown)=>{store.updateSettings({...settingsSchema.parse(raw),locale:resolveLocale(settingsSchema.parse(raw).languagePreference,app.getLocale()),workBuddyModelId:store.state.settings.workBuddyModelId||''});changed();return snapshot()})
   handle('workbuddy-settings',()=>agents.workBuddySettings())
   handle('workbuddy-model',async(raw:unknown)=>{
@@ -163,7 +165,7 @@ async function launch(){
   const userData=app.getPath('userData')
   store=new Store(userData,path.join(userData,'projects'))
   store.state.settings.locale=resolveLocale(store.state.settings.languagePreference,app.getLocale());store.save()
-  agents=new AgentService(userData,()=>store.state.settings.workBuddyModelId||'',()=>store.state.settings.allowWeb!==false,()=>store.state.settings.agentModels||{})
+  agents=new AgentService(userData,()=>store.state.settings.workBuddyModelId||'',()=>store.state.settings.allowWeb!==false,()=>store.state.settings.agentModels||{},()=>changed())
   let runner=agents.runner
   if(smoke&&!app.isPackaged){
     store.state.settings.locale='zh';store.state.settings.languagePreference='zh';store.save()
@@ -207,7 +209,7 @@ async function launch(){
     }catch(error:any){fs.writeFileSync(path.join(packageCheck,'failure.txt'),redact(error.stack||error));app.exit(1)}
   }else if(smoke&&!app.isPackaged){
     const {runSmoke}=await import('./smoke')
-    try{await runSmoke(window,smoke,(groupId,filename)=>{store.importAttachment(groupId,filename);changed()});app.quit()}catch(error:any){fs.writeFileSync(path.join(smoke,'failure.txt'),String(error.stack||error));app.exit(1)}
+    try{await runSmoke(window,smoke,(groupId,filename)=>{store.importAttachment(groupId,filename);changed()},status=>{mockDetection={status};changed()});app.quit()}catch(error:any){fs.writeFileSync(path.join(smoke,'failure.txt'),String(error.stack||error));app.exit(1)}
   }else agents.refresh().then(changed).catch(error=>{console.error(redact(error.message))})
 }
 if(!app.requestSingleInstanceLock())app.quit()

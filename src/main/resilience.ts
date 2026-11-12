@@ -29,7 +29,7 @@ export function trace(attempt:AgentAttempt,type:AgentAttempt['events'][number]['
 /** Watches an invocation independently of CLI cooperation. No raw prompts/stdout or reasoning are retained. */
 export async function monitoredInvoke(runner:Runner,input:InvokeInput,attempt:AgentAttempt,policy:WatchdogPolicy,publish:()=>void,register?:(controller:AbortController)=>void):Promise<InvokeResult>{
  const own=new AbortController();register?.(own)
- let fault:AgentFault|undefined,firstEvent=false,settled=false,pending=false,replyRecorded=false,lastPublished=0,nativeSettled=false
+ let fault:AgentFault|undefined,settled=false,pending=false,replyRecorded=false,lastPublished=0,nativeSettled=false
  let native:Promise<InvokeResult>|undefined
  let rejectAbort:(reason:unknown)=>void=()=>{}
  const aborted=new Promise<never>((_,reject)=>{rejectAbort=reject})
@@ -42,7 +42,7 @@ export async function monitoredInvoke(runner:Runner,input:InvokeInput,attempt:Ag
  }
  function activity(progress=false){
   if(settled)return
-  firstEvent=true;const at=new Date().toISOString();attempt.lastActivityAt=at
+  const at=new Date().toISOString();attempt.lastActivityAt=at
   if(progress)attempt.lastProgressAt=at
  }
  const abortFromParent=()=>{own.abort(input.signal.reason);rejectAbort(new Error('任务已停止'))}
@@ -54,11 +54,9 @@ export async function monitoredInvoke(runner:Runner,input:InvokeInput,attempt:Ag
  const timer=setInterval(()=>{
   const now=Date.now()
   if(now-started>=input.timeoutMs)fail(new AgentFault('AGENT_TIMEOUT','timeout','已超过单次调用总时限。',true))
-  else if(!firstEvent&&now-started>=policy.startupMs)fail(new AgentFault('AGENT_STARTUP_TIMEOUT','startup-timeout','启动后长时间未收到任何反馈，已停止该 Agent。',true))
-  else if(firstEvent&&now-Date.parse(attempt.lastActivityAt)>=policy.idleMs)fail(new AgentFault('AGENT_IDLE_TIMEOUT','idle-timeout','超过无活动阈值，未收到新的 CLI 事件，已停止该 Agent。',true))
-  else if(firstEvent&&now-Date.parse(attempt.lastProgressAt)>=policy.progressMs)fail(new AgentFault('AGENT_PROGRESS_TIMEOUT','progress-timeout','持续收到活动信号，但超过阈值没有实质进展，已停止该 Agent。',true))
+  else if(now-Date.parse(attempt.lastProgressAt)>=policy.executionIdleMs)fail(new AgentFault('AGENT_NO_EXECUTION_TIMEOUT','idle-timeout','超过设定时间未收到工具执行或中间回复，已停止该 Agent。',true))
   else if(pending)notify(true)
- },Math.min(1000,policy.startupMs,policy.idleMs,policy.progressMs,input.timeoutMs))
+ },Math.min(1000,policy.executionIdleMs,input.timeoutMs))
  try{
   native=Promise.resolve().then(()=>{
    if(own.signal.aborted)throw own.signal.reason||new Error('任务已停止')
@@ -70,7 +68,7 @@ export async function monitoredInvoke(runner:Runner,input:InvokeInput,attempt:Ag
     input.onProgress(text);notify()
    },onRuntimeEvent:(event:RuntimeSignal)=>{
     if(settled)return
-    activity(event.progress===true)
+    activity(event.progress===true||['tool_start','tool_update','tool_result_summary'].includes(event.type))
     if(event.type==='tool_start'||event.type==='tool_update')attempt.activity='tool'
     else if(event.type==='permission')attempt.activity='permission'
     else if(event.type==='tool_result_summary'||event.type==='status')attempt.activity='waiting'

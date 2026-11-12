@@ -22,6 +22,19 @@ function fixture(overrides:Partial<GroupInput>={},runner?:Runner){
   return {root,store,group,calls,engine,start}
 }
 describe('result-centred orchestration',()=>{
+  test('new workspace defaults are 30 minutes, 5 discussion rounds and 5 minutes without execution feedback',()=>{
+    const f=fixture()
+    expect(f.store.state.settings.timeoutMinutes).toBe(30)
+    expect(f.store.state.settings.maxRounds).toBe(5)
+    expect(f.store.state.settings.noExecutionTimeoutMinutes).toBe(5)
+    Object.assign(f.store.state.settings,{timeoutMinutes:45,maxRounds:3,startupTimeoutSeconds:10})
+    f.store.save()
+    const reopened=new Store(f.store.dataDirectory,f.store.state.settings.defaultDirectory)
+    expect(reopened.state.settings.timeoutMinutes).toBe(45)
+    expect(reopened.state.settings.maxRounds).toBe(3)
+    expect(reopened.state.settings).not.toHaveProperty('startupTimeoutSeconds')
+  })
+
   test('ten selected attachments pass IPC validation, eleven do not',()=>{
     const ids=Array.from({length:11},(_,i)=>`00000000-0000-4000-8000-${String(i).padStart(12,'0')}`)
     const input={groupId:ids[0],text:'test',mode:'auto',attachmentIds:ids.slice(0,10)}

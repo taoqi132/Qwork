@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { BrowserWindow } from 'electron'
-export async function runSmoke(window:BrowserWindow,directory:string,importFixture?:(groupId:string,filename:string)=>void){
+export async function runSmoke(window:BrowserWindow,directory:string,importFixture?:(groupId:string,filename:string)=>void,discoveryFixture?:(status:'searching'|'ready'|'failed')=>void){
   fs.mkdirSync(directory,{recursive:true})
   const js=(code:string)=>window.webContents.executeJavaScript(code,true)
   const capture=async(name:string)=>{
@@ -22,6 +22,23 @@ export async function runSmoke(window:BrowserWindow,directory:string,importFixtu
   }
   const clickText=async(text:string)=>js(`(()=>{const el=[...document.querySelectorAll('button')].find(e=>e.textContent.trim().includes(${JSON.stringify(text)}));if(!el)throw Error('Missing button');el.click()})()`)
   await wait("document.querySelector('.mode-grid')?.children.length===4")
+  if(discoveryFixture){
+    discoveryFixture('searching')
+    await wait("document.querySelector('.local-state')?.textContent.includes('正在查找本机 Agent')")
+    if(await js("document.querySelector('.local-state')?.textContent.includes('/6')"))throw new Error('Detection shows a premature agent count')
+    await clickText('设置与 Agent')
+    await wait("document.querySelectorAll('.agent-setting-card .status-chip').length===6&&[...document.querySelectorAll('.agent-setting-card .status-chip')].every(e=>e.textContent.includes('查找中'))")
+    if(await js("document.querySelector('.agent-settings-grid')?.textContent.includes('未找到 CLI')"))throw new Error('Searching misreported an absent CLI')
+    await capture('20-agent-searching.png')
+    discoveryFixture('failed')
+    await wait("document.querySelector('.local-state')?.textContent.includes('检测失败，点击重试')")
+    await capture('21-agent-detection-failed.png')
+    await js("document.querySelector('.local-state button').click()")
+    await wait("document.querySelector('.local-state')?.textContent.includes('6/6')")
+    if(await js("document.querySelector('.about-card')?.textContent.includes('基于 Meldwork')"))throw new Error('Old settings tagline remains')
+    await clickText('工作台')
+    await wait("!!document.querySelector('.mode-grid')")
+  }
   await new Promise(r=>setTimeout(r,300))
   await capture('01-home.png')
   await clickText('接力讨论')

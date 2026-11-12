@@ -40,7 +40,7 @@ export class Store {
   readonly filename:string
   constructor(readonly dataDirectory:string,defaultDirectory:string){
     fs.mkdirSync(dataDirectory,{recursive:true}); this.filename=path.join(dataDirectory,'workspace.json')
-    const initial:State={version:1,settings:{defaultDirectory,maxRounds:6,locale:'zh',timeoutMinutes:15},groups:[],attachments:[],messages:[],runs:[],artifacts:[]}
+    const initial:State={version:1,settings:{defaultDirectory,maxRounds:5,locale:'zh',timeoutMinutes:30},groups:[],attachments:[],messages:[],runs:[],artifacts:[]}
     if(fs.existsSync(this.filename)){
       const raw=JSON.parse(fs.readFileSync(this.filename,'utf8'))
       if(raw.version!==1||!['groups','runs','messages','attachments','artifacts'].every(k=>Array.isArray(raw[k])))throw new Error('工作区数据格式不支持，请保留原文件后联系维护者')
@@ -51,6 +51,8 @@ export class Store {
       for(const attempt of run.attempts||[])if(attempt.status==='running'){attempt.status='interrupted';attempt.finishedAt=now();attempt.events.push({id:randomUUID(),at:now(),type:'warning',summary:'应用已退出，本轮调用中断。'})}
     }
     delete (this.state.settings as Settings & {accentColor?:string}).accentColor
+    this.state.settings.noExecutionTimeoutMinutes??=5
+    for(const key of ['startupTimeoutSeconds','idleTimeoutSeconds','progressTimeoutSeconds'])delete (this.state.settings as unknown as Record<string,unknown>)[key]
     this.save()
   }
   save(){

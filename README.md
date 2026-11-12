@@ -144,7 +144,7 @@ The installer is generated under `release/`. It bundles the application runtime;
 
 - **One writer, independent reviewers.** Writing is limited to the production role; discussion and review use read-only CLI modes. New groups visibly enable workspace-write authorization by default; review it before creation.
 - **Version-bound file checks.** Qwork fingerprints output files and rejects approvals for a different version or files changed during review.
-- **Visible failure handling.** Startup, inactivity, no-progress and total-call limits bound waiting. Abnormal members are removed with an explanation; a reduced team is visibly labeled.
+- **Visible failure handling.** Total execution and no-execution-feedback timeouts bound waiting. Abnormal members are removed with an explanation; a reduced team is visibly labeled.
 - **Preserved work.** Partial files and discussion remain available. Cancelled or interrupted writes are not automatically replayed. Removing a conversation retains its files.
 - **Local records.** Conversations, inputs and outputs stay on disk. Native CLIs may send task data to their configured providers.
 
@@ -173,7 +173,7 @@ scripts/        Build, test and screenshot tooling
 
 [Contributing](CONTRIBUTING.md)
 
-**Validation:** 101 Qwork tests, type checks, production builds and Electron fixture acceptance passed locally. These checks use fixture agents; live provider and file-format coverage remains incomplete.
+**Validation:** 105 Qwork tests, type checks, production builds and Electron fixture acceptance passed locally. These checks use fixture agents; live provider and file-format coverage remains incomplete.
 
 <details>
 <summary>Developer checks and screenshot generation</summary>

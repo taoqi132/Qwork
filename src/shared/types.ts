@@ -5,14 +5,14 @@ export type Mode = 'review' | 'parallel' | 'sequential' | 'auto'
 export type RunStatus = 'running' | 'waiting' | 'completed' | 'partial' | 'failed' | 'cancelled' | 'interrupted'
 export type Stage = 'preparing' | 'discussing' | 'summarizing' | 'producing' | 'checking' | 'finished'
 export interface AgentInfo {kind:AgentKind; label:string; installed:boolean; compatible:boolean; version:string; credential:'ready'|'missing'|'unknown'; source:string; error?:string; testedAt?:string}
-export interface Settings {agentModels?:Partial<Record<AgentKind,string>>;allowWeb?:boolean;themePreference?:'system'|'light'|'dark';defaultDirectory:string; maxRounds:number; locale:'zh'|'en'; timeoutMinutes:number; workBuddyModelId?:string;languagePreference?:'system'|'zh'|'en';startupTimeoutSeconds?:number;idleTimeoutSeconds?:number;progressTimeoutSeconds?:number}
+export interface Settings {agentModels?:Partial<Record<AgentKind,string>>;allowWeb?:boolean;themePreference?:'system'|'light'|'dark';defaultDirectory:string; maxRounds:number; locale:'zh'|'en'; timeoutMinutes:number; workBuddyModelId?:string;languagePreference?:'system'|'zh'|'en';noExecutionTimeoutMinutes?:number}
 export type FaultCategory='authentication'|'network'|'rate-limit'|'permission'|'startup-timeout'|'idle-timeout'|'progress-timeout'|'timeout'|'process'|'protocol'|'manual'|'storage'
 export interface AgentFaultInfo {code:string;category:FaultCategory;message:string;retryable:boolean}
 export interface ExcludedAgent {kind:AgentKind;reason:string;code:string;category:FaultCategory;at:string;runId:string}
 export interface TraceEvent {id:string;at:string;type:'started'|'response'|'tool'|'permission'|'status'|'warning'|'failure'|'completed'|'removed';summary:string;detail?:string;code?:string}
 export interface AgentAttempt {inputSummary?:string;outputMessageId?:string;id:string;kind:AgentKind;round:number;stage:Stage;role:string;status:'running'|'completed'|'failed'|'cancelled'|'interrupted';startedAt:string;updatedAt:string;lastActivityAt:string;lastProgressAt:string;finishedAt?:string;responseChars:number;events:TraceEvent[];fault?:AgentFaultInfo;droppedEvents:number;cleanup?:'settled'|'unconfirmed';activity?:'waiting'|'responding'|'tool'|'permission'}
 export interface RuntimeSignal {type:'status'|'tool_start'|'tool_update'|'tool_result_summary'|'warning'|'permission'|'failure';summary:string;detail?:string;code?:string;category?:FaultCategory;fatal?:boolean;progress?:boolean}
-export interface WatchdogPolicy {startupMs:number;idleMs:number;progressMs:number}
+export interface WatchdogPolicy {executionIdleMs:number}
 export interface WorkBuddySettings {modelId:string;models:{id:string;name:string}[]}
 export interface Group {id:string; name:string; goal:string; kind:'group'|'direct'; agents:AgentKind[]; workdir:string; allowWrite:boolean; mode:Mode; maxRounds:number; moderator:AgentKind; summarizer:AgentKind; executor:AgentKind; executeAfter:boolean; recommended:boolean; createdAt:string; updatedAt:string;excludedAgents?:ExcludedAgent[]}
 export interface Attachment {id:string; groupId:string; name:string; size:number; relativePath:string; sha256:string; importedAt:string}
@@ -21,7 +21,8 @@ export interface Message {contextRevision?:number;id:string; groupId:string; run
 export interface Gate {id:string; runId:string; message:string; kind:'decision'|'stalled'|'partial'|'clarification';options?:string[];questions?:{scope?:'task'|'agent';question:string;options?:string[];agents:AgentKind[]}[];resumeWrite?:boolean}
 export interface Run {recoveryContext?:string;contextRevision?:number;clarificationBatches?:number;modelOverrides?:Partial<Record<AgentKind,string>>;allowWeb?:boolean;delivery?:'text'|'files';id:string; groupId:string; mode:Mode; status:RunStatus; stage:Stage; round:number; maxRounds:number; task:string; attachmentIds:string[]; participants:AgentKind[]; startedAt:string; finishedAt?:string; summary:string; issues:string[]; currentAgent?:AgentKind; version?:string; gate?:Gate; error?:string; verification:string; settings:Group; outputRelative:string;activeAgents?:AgentKind[];lastStage?:Stage;locale?:'zh'|'en';attempts?:AgentAttempt[];excludedAgents?:ExcludedAgent[];degraded?:boolean;watchdog?:WatchdogPolicy;callTimeoutMs?:number}
 export interface State {version:1; settings:Settings; groups:Group[]; attachments:Attachment[]; messages:Message[]; runs:Run[]; artifacts:Artifact[]}
-export interface Snapshot extends State {agents:AgentInfo[]}
+export interface AgentDetectionState {status:'searching'|'ready'|'failed'}
+export interface Snapshot extends State {agents:AgentInfo[];agentDetection?:AgentDetectionState}
 export interface Receipt {questions?:{scope?:'task'|'agent';question:string;options?:string[]}[];summary:string; status:'continue'|'ready'|'approve'|'needs-human'; issues:string[]; nextAgents:AgentKind[]; reviewedVersion?:string; verification?:string}
 export interface InvokeInput {modelId?:string;allowWeb?:boolean;kind:AgentKind; prompt:string; workdir:string; allowWrite:boolean; signal:AbortSignal; timeoutMs:number; onProgress:(text:string)=>void;onActivity?:()=>void;onRuntimeEvent?:(event:RuntimeSignal)=>void}
 export interface InvokeResult {text:string}

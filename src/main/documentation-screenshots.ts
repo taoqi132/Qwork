@@ -20,7 +20,7 @@ export async function captureDocumentation(window:BrowserWindow,directory:string
   const en=language==='en',locale=en?'en':'zh-CN',home=en?'Workspace':'工作台',settings=en?'Settings & agents':'设置与 Agent'
   const name=en?'Product launch briefing':'产品发布汇报'
   const task=en?'Create a concise launch briefing covering objectives, milestones, risks and next steps. Deliver a Markdown file for review.':'制作一份产品发布汇报，包含目标、里程碑、风险和下一步计划，交付 Markdown 文件并检查。'
-  const group=await js(`(async()=>{const s=await window.qwork.get();return window.qwork.createGroup({name:${JSON.stringify(name)},goal:'',kind:'group',agents:['codex','claude','workbuddy'],workdir:s.settings.defaultDirectory,allowWrite:true,mode:'auto',maxRounds:6,moderator:'codex',summarizer:'claude',executor:'claude',executeAfter:true,recommended:false})})()`)
+  const group=await js(`(async()=>{const s=await window.qwork.get();return window.qwork.createGroup({name:${JSON.stringify(name)},goal:'',kind:'group',agents:['codex','claude','workbuddy'],workdir:s.settings.defaultDirectory,allowWrite:true,mode:'auto',maxRounds:5,moderator:'codex',summarizer:'claude',executor:'claude',executeAfter:true,recommended:false})})()`)
   await click(home);await wait("!!document.querySelector('.mode-grid')")
   await capture(`docs-${language}-home.png`,locale)
   await js(`window.qwork.send({groupId:${JSON.stringify(group.id)},text:${JSON.stringify(task)},attachmentIds:[],mode:'auto'})`)
