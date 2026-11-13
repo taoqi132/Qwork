@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from 'vitest'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import {AGENT_KINDS} from '../src/shared/types'
 import type { GroupInput, InvokeInput, Receipt, Runner } from '../src/shared/types'
 import { Store, within } from '../src/main/storage'
 import { Workflow } from '../src/main/workflow'
@@ -22,6 +23,112 @@ function fixture(overrides:Partial<GroupInput>={},runner?:Runner){
   return {root,store,group,calls,engine,start}
 }
 describe('result-centred orchestration',()=>{
+  test('pre-task round adjustment is persisted and frozen into the next run only',async()=>{
+    const f=fixture({maxRounds:5})
+    f.engine.setGroupRounds(f.group.id,3)
+    const reopened=new Store(f.store.dataDirectory,f.store.state.settings.defaultDirectory)
+    expect(reopened.group(f.group.id).maxRounds).toBe(3)
+    const first=f.start()
+    expect(f.store.run(first.id).maxRounds).toBe(3)
+    expect(()=>f.engine.setGroupRounds(f.group.id,4)).toThrow('运行中')
+    await f.engine.settled(first.id)
+    f.engine.setGroupRounds(f.group.id,7)
+    expect(f.store.run(first.id).maxRounds).toBe(3)
+    expect(f.store.state.settings.maxRounds).toBe(5)
+    for(const invalid of [0,9,2.5])expect(()=>f.engine.setGroupRounds(f.group.id,invalid)).toThrow()
+    expect(f.group.maxRounds).toBe(7)
+  })
+
+  test('removing a slow member does not reset a real second discussion round',async()=>{
+    let moderators=0
+    const f=fixture({mode:'auto',agents:['codex','claude','workbuddy'],moderator:'claude',maxRounds:2},async i=>{
+      if(i.kind==='workbuddy')return new Promise((_resolve,reject)=>i.signal.addEventListener('abort',()=>reject(i.signal.reason)))
+      if(i.prompt.includes('你是只读主持者')&&++moderators===1)return receipt('continue',{issues:['need more evidence']})
+      return receipt()
+    })
+    const r=f.start()
+    for(let n=0;n<100&&!f.store.run(r.id).attempts?.some(a=>a.kind==='workbuddy');n++)await new Promise(resolve=>setTimeout(resolve,5))
+    f.engine.removeAgent(r.id,'workbuddy');await f.engine.settled(r.id)
+    expect(f.store.run(r.id).round).toBe(2)
+    expect(f.store.run(r.id).status).toBe('completed')
+    const contributions=f.store.state.messages.filter(m=>m.runId===r.id&&m.agent==='codex'&&m.collaborationRole==='contributor')
+    expect(contributions.map(m=>m.round)).toEqual([1,2])
+  })
+
+  test('a completed parallel reply is saved before a slower peer returns',async()=>{
+    let release!:()=>void
+    const held=new Promise<void>(resolve=>{release=resolve})
+    const f=fixture({mode:'auto',agents:['codex','claude','workbuddy'],moderator:'claude'},async i=>{
+      if(i.kind==='workbuddy')await held
+      return receipt()
+    })
+    const r=f.start()
+    for(let n=0;n<100&&!f.store.state.messages.some(m=>m.runId===r.id&&m.agent==='claude');n++)await new Promise(resolve=>setTimeout(resolve,5))
+    try{
+      const message=f.store.state.messages.find(m=>m.runId===r.id&&m.agent==='claude')
+      expect(message?.text).toContain('有效成果正文')
+      expect(f.store.run(r.id).attempts?.find(a=>a.kind==='claude')?.outputMessageId).toBe(message?.id)
+      expect(f.store.run(r.id).activeAgents).toContain('workbuddy')
+    }finally{release();await f.engine.settled(r.id)}
+  })
+  test('one members local file permissions do not open a global clarification or replay healthy peers',async()=>{
+    const f=fixture({mode:'auto',agents:['codex','claude','workbuddy'],moderator:'claude'},async i=>{
+      if(i.kind==='workbuddy')return receipt('needs-human',{summary:'读取工具被当前环境的权限策略拦截',issues:['Read 工具被拒绝'],questions:[{question:'能否粘贴文件正文？'}]})
+      return receipt()
+    })
+    const r=f.start();await f.engine.settled(r.id)
+    expect(f.store.run(r.id).status).toBe('completed')
+    expect(f.store.run(r.id).clarificationBatches||0).toBe(0)
+    expect(f.store.run(r.id).excludedAgents||[]).toHaveLength(0)
+    expect(f.group.agents.some(member=>member.kind==='workbuddy')).toBe(true)
+    expect(f.store.run(r.id).attempts?.some(a=>a.kind==='workbuddy'&&a.events.some(e=>e.type==='warning'&&e.summary.includes('已保留回答与成员')))).toBe(true)
+    expect(f.calls.filter(i=>i.kind==='codex'&&i.prompt.includes('本次角色与要求：\n本阶段只读。'))).toHaveLength(1)
+  })
+
+  for(const kind of ['claude','codex'] as const)test(`${kind}: a completed answer with partial web failures is not removed`,async()=>{
+    const f=fixture({mode:'auto',agents:['codex','claude'],moderator:kind==='claude'?'codex':'claude',executor:kind==='claude'?'codex':'claude'},async i=>{
+      if(i.kind===kind)return receipt('continue',{executionIssue:'network',summary:'已提供房源线索；部分站点网络策略拦截，未核验仍在售',issues:['WebSearch 未返回有效结果']})
+      return receipt()
+    })
+    const r=f.start();await f.engine.settled(r.id)
+    expect(f.store.run(r.id).status).toBe('completed')
+    expect(f.store.run(r.id).excludedAgents||[]).toHaveLength(0)
+    expect(f.group.agents).toHaveLength(2)
+    expect(f.store.state.messages.some(m=>m.runId===r.id&&m.agent===kind&&m.text.includes('有效成果正文'))).toBe(true)
+    expect(f.store.run(r.id).attempts?.some(a=>a.kind===kind&&a.status==='completed'&&a.events.some(e=>e.type==='warning'))).toBe(true)
+  })
+
+  test('a transient Claude tool failure preserves membership and permits a later answer',async()=>{
+    let claudeCalls=0
+    const f=fixture({mode:'sequential',maxRounds:2,moderator:'codex'},async i=>{
+      if(i.kind==='claude'&&++claudeCalls===1)return receipt('needs-human',{executionIssue:'file-access',summary:'Read 读取失败，已完成其余分析'})
+      if(i.prompt.includes('你是只读主持者')&&claudeCalls===1)return receipt('continue',{issues:['继续核验']})
+      return receipt()
+    })
+    const r=f.start();await f.engine.settled(r.id)
+    expect(f.store.run(r.id).status).toBe('completed')
+    expect(claudeCalls).toBeGreaterThan(1)
+    expect(f.store.run(r.id).excludedAgents||[]).toHaveLength(0)
+    expect(f.group.agents.some(member=>member.kind==='claude')).toBe(true)
+    expect(f.store.run(r.id).attempts?.some(a=>a.kind==='claude'&&a.events.some(e=>e.type==='warning'&&e.code==='AGENT_EXECUTION_BLOCKED'))).toBe(true)
+    expect(f.store.run(r.id).clarificationBatches||0).toBe(0)
+  })
+
+  for(const mode of ['auto','sequential','parallel'] as const)for(const scenario of ['preferred','same-producer','unavailable'] as const)test(`${mode}: independent file review selects the moderator safely (${scenario})`,async()=>{
+    const moderator=scenario==='same-producer'?'codex':'workbuddy'
+    const f=fixture({mode,agents:['codex','claude','workbuddy'],moderator,executor:'codex',allowWrite:true,executeAfter:true,maxRounds:1},async i=>{
+      if(scenario==='unavailable'&&i.kind==='workbuddy')throw new Error('process crashed')
+      if(i.allowWrite){const out=i.prompt.match(/本次唯一成果目录：([^\n]+)/)![1];fs.writeFileSync(path.join(out,'result.md'),'final file')}
+      return receipt(version(i.prompt)?'approve':'ready',{reviewedVersion:version(i.prompt),verification:'read actual file'})
+    })
+    const r=f.start();await f.engine.settled(r.id)
+    expect(f.store.run(r.id).status).toBe('completed')
+    const checks=f.calls.filter(i=>version(i.prompt))
+    expect(checks).toHaveLength(1)
+    expect(checks[0].kind).toBe(mode!=='parallel'&&scenario==='preferred'?'workbuddy':'claude')
+    expect(checks[0].allowWrite).toBe(false)
+  })
+
   test('new workspace defaults are 30 minutes, 5 discussion rounds and 5 minutes without execution feedback',()=>{
     const f=fixture()
     expect(f.store.state.settings.timeoutMinutes).toBe(30)
@@ -167,7 +274,7 @@ describe('result-centred orchestration',()=>{
     expect(f.store.run(r.id).degraded).toBe(true)
     expect(f.store.run(r.id).status).toBe(allFail?'partial':'completed')
     expect(f.store.state.artifacts[0].checked).toBe(!allFail)
-    expect(f.group.agents).not.toContain('workbuddy')
+    expect(f.group.agents.some(member=>member.kind==='workbuddy')).toBe(false)
   })
   for(const mode of ['auto','sequential','parallel'] as const)test(`${mode}: one owner call synthesizes and produces after analysis`,async()=>{
     const f=fixture({mode,executeAfter:true,allowWrite:true,executor:'claude'},async i=>{
@@ -213,6 +320,105 @@ describe('result-centred orchestration',()=>{
     await f.engine.settled(r.id)
     expect(f.calls.filter(i=>i.kind==='codex').every(i=>i.modelId==='fixture/model-a')).toBe(true)
     expect(f.calls.find(i=>i.kind==='claude')?.modelId).toBe('fixture/model-b')
+  })
+  test('all eleven permitted instances contribute without a total group limit',async()=>{
+    const agents=AGENT_KINDS.flatMap<import('../src/shared/types').AgentMember>(kind=>kind==='openclaw'?[{id:kind,kind}]:[{id:kind,kind},{id:`${kind}-2`,kind}])
+    const f=fixture({mode:'parallel',agents,moderator:'claude-2',summarizer:'codex-2',executor:'codex-2'})
+    const r=f.start();await f.engine.settled(r.id)
+    const run=f.store.run(r.id)
+    expect(run.status).toBe('completed')
+    expect(run.participants).toHaveLength(11)
+    expect(new Set(run.attempts?.filter(a=>a.role==='contributor').map(a=>a.memberId)).size).toBe(11)
+    expect(run.attempts?.find(a=>a.role==='finalizer')?.memberId).toBe('codex-2')
+  })
+  test('two instances of one Agent run as independent members with their own models',async()=>{
+    const f=fixture({mode:'parallel',agents:[{id:'codex',kind:'codex',model:'fixture/model-a'},{id:'codex-2',kind:'codex',model:'fixture/model-b'}],moderator:'codex',summarizer:'codex',executor:'codex'})
+    const r=f.start();await f.engine.settled(r.id)
+    const run=f.store.run(r.id)
+    expect(run.status).toBe('completed')
+    expect(run.participants.map(member=>member.id)).toEqual(['codex','codex-2'])
+    expect(run.modelOverrides).toEqual({codex:'fixture/model-a','codex-2':'fixture/model-b'})
+    const discussion=run.attempts?.filter(a=>a.stage==='discussing')||[]
+    expect(discussion.map(a=>a.memberId).sort()).toEqual(['codex','codex-2'])
+    expect(discussion.map(a=>a.modelId).sort()).toEqual(['fixture/model-a','fixture/model-b'])
+  })
+  test('member models override globals while empty values inherit the frozen global model',async()=>{
+    const f=fixture({agents:[{id:'codex',kind:'codex',model:'member/model'},{id:'codex-2',kind:'codex'},{id:'claude',kind:'claude'}],moderator:'codex',summarizer:'claude',executor:'claude'})
+    f.store.state.settings.agentModels={codex:'global/codex',claude:'global/claude'}
+    const r=f.start();await f.engine.settled(r.id)
+    expect(f.store.run(r.id).modelOverrides).toEqual({codex:'member/model','codex-2':'global/codex',claude:'global/claude'})
+    expect(f.calls.find(i=>i.kind==='claude')?.modelId).toBe('global/claude')
+    expect(f.calls.filter(i=>i.kind==='codex').map(i=>i.modelId).sort()).toEqual(['global/codex','member/model','member/model'])
+  })
+  test('WorkBuddy members freeze the global model even without a member override',async()=>{
+    const f=fixture({agents:['workbuddy','codex'],moderator:'codex',summarizer:'codex',executor:'codex'})
+    f.store.state.settings.workBuddyModelId='wb/global'
+    const r=f.start();await f.engine.settled(r.id)
+    expect(f.store.run(r.id).modelOverrides?.workbuddy).toBe('wb/global')
+    expect(f.calls.filter(i=>i.kind==='workbuddy').every(i=>i.modelId==='wb/global')).toBe(true)
+  })
+  test('role selections can target the second same-kind instance',async()=>{
+    const f=fixture({mode:'sequential',agents:[{id:'codex',kind:'codex'},{id:'codex-2',kind:'codex'},{id:'claude',kind:'claude'}],moderator:'codex-2',summarizer:'codex-2',executor:'codex-2',maxRounds:1})
+    const r=f.start();await f.engine.settled(r.id)
+    const run=f.store.run(r.id)
+    expect(run.status).toBe('completed')
+    expect(run.attempts?.find(a=>a.role==='moderator')?.memberId).toBe('codex-2')
+    expect(run.attempts?.find(a=>a.role==='finalizer')?.memberId).toBe('codex-2')
+  })
+  test('removing one instance keeps its same-kind sibling and falls back roles to it',async()=>{
+    let codexCalls=0
+    const f=fixture({mode:'sequential',agents:[{id:'codex',kind:'codex'},{id:'codex-2',kind:'codex'},{id:'claude',kind:'claude'}],moderator:'codex-2',summarizer:'codex-2',executor:'codex-2',maxRounds:2},i=>{
+      if(i.kind==='codex'&&++codexCalls===2)return new Promise((_resolve,reject)=>i.signal.addEventListener('abort',()=>reject(i.signal.reason)))
+      return Promise.resolve(receipt())
+    })
+    const r=f.start()
+    for(let n=0;n<100&&!f.store.run(r.id).attempts?.some(a=>a.memberId==='codex-2');n++)await new Promise(resolve=>setTimeout(resolve,5))
+    f.engine.removeAgent(r.id,'codex-2');await f.engine.settled(r.id)
+    const run=f.store.run(r.id)
+    expect(run.excludedAgents?.map(a=>a.memberId)).toEqual(['codex-2'])
+    expect(f.group.agents.map(member=>member.id)).toEqual(['codex','claude'])
+    expect(f.group.moderator).toBe('codex');expect(f.group.executor).toBe('codex')
+    expect(run.status).toBe('completed')
+  })
+  test('a moderator nextAgents kind routes to every available same-kind instance',async()=>{
+    let moderations=0
+    const f=fixture({mode:'auto',agents:[{id:'codex',kind:'codex'},{id:'codex-2',kind:'codex'},{id:'claude',kind:'claude'}],moderator:'codex',summarizer:'claude',executor:'claude',maxRounds:2},i=>{
+      if(i.prompt.includes('你是只读主持者')&&++moderations===1)return Promise.resolve(receipt('continue',{issues:['need more evidence'],nextAgents:['codex']}))
+      return Promise.resolve(receipt())
+    })
+    const r=f.start();await f.engine.settled(r.id)
+    const second= f.store.run(r.id).attempts?.filter(a=>a.round===2&&a.role==='contributor').map(a=>a.memberId).sort()
+    expect(second).toEqual(['codex','codex-2'])
+  })
+  test('prompts use instance display names and never expose raw member ids',async()=>{
+    const f=fixture({mode:'sequential',agents:[{id:'codex',kind:'codex'},{id:'codex-2',kind:'codex'},{id:'claude',kind:'claude'}],moderator:'codex',summarizer:'codex',executor:'codex'})
+    const r=f.start();await f.engine.settled(r.id)
+    expect(f.calls.some(i=>i.prompt.includes('Codex 2'))).toBe(true)
+    expect(f.calls.every(i=>!i.prompt.includes('codex-2'))).toBe(true)
+  })
+  test('a same-kind sibling can independently review the producer',async()=>{
+    const f=fixture({mode:'auto',agents:[{id:'codex',kind:'codex'},{id:'codex-2',kind:'codex'}],moderator:'codex-2',summarizer:'codex-2',executor:'codex',allowWrite:true,executeAfter:true,maxRounds:1},async i=>{
+      if(i.allowWrite){const out=i.prompt.match(/本次唯一成果目录：([^\n]+)/)![1];fs.writeFileSync(path.join(out,'result.md'),'final file')}
+      return receipt(version(i.prompt)?'approve':'ready',{reviewedVersion:version(i.prompt),verification:'read actual file'})
+    })
+    const r=f.start();await f.engine.settled(r.id)
+    const run=f.store.run(r.id)
+    expect(run.status).toBe('completed')
+    expect(run.attempts?.find(a=>a.role==='producer')?.memberId).toBe('codex')
+    expect(run.attempts?.find(a=>a.role==='reviewer')?.memberId).toBe('codex-2')
+  })
+  test('a failure only removes the failing instance, not its same-kind sibling',async()=>{
+    let codexCalls=0
+    const f=fixture({agents:[{id:'codex',kind:'codex'},{id:'codex-2',kind:'codex'},{id:'claude',kind:'claude'}],moderator:'claude',summarizer:'claude',executor:'claude'},i=>{
+      if(i.kind==='codex'&&++codexCalls===2)throw new Error('auth required')
+      return Promise.resolve(receipt())
+    })
+    const r=f.start();await f.engine.settled(r.id)
+    const run=f.store.run(r.id)
+    expect(run.degraded).toBe(true)
+    expect(run.excludedAgents?.map(a=>a.memberId)).toEqual(['codex-2'])
+    expect(f.group.agents.map(member=>member.id)).toEqual(['codex','claude'])
+    expect(run.attempts?.some(a=>a.memberId==='codex'&&a.status==='completed')).toBe(true)
   })
   test('web permission is frozen at task start and included in the task prompt',async()=>{
     const f=fixture();f.store.state.settings.allowWeb=false
@@ -326,7 +532,7 @@ describe('result-centred orchestration',()=>{
   })
   test('failed peer cannot silently disappear from consensus',async()=>{
     const f=fixture({},async i=>{if(i.kind==='claude')throw new Error('auth required');return receipt()});const r=f.start();await f.engine.settled(r.id)
-    expect(f.store.run(r.id).status).toBe('partial');expect(f.group.agents).not.toContain('claude');expect(f.store.run(r.id).excludedAgents?.[0].kind).toBe('claude')
+    expect(f.store.run(r.id).status).toBe('partial');expect(f.group.agents.some(member=>member.kind==='claude')).toBe(false);expect(f.store.run(r.id).excludedAgents?.[0].kind).toBe('claude')
   })
   test('attachment passes a file path without extracting contents',async()=>{
     const f=fixture();const source=path.join(f.root,'source.pdf');fs.writeFileSync(source,'OPAQUE_PRIVATE_CONTENT')
@@ -376,7 +582,7 @@ describe('result-centred orchestration',()=>{
     const r=f.start();await f.engine.settled(r.id)
     const run=f.store.run(r.id)
     expect(run.status).toBe('completed');expect(run.degraded).toBe(true)
-    expect(run.participants).toContain('workbuddy');expect(f.group.agents).toEqual(['codex','claude'])
+    expect(run.participants.map(member=>member.id)).toContain('workbuddy');expect(f.group.agents.map(member=>member.id)).toEqual(['codex','claude'])
     expect(run.excludedAgents?.[0].category).toBe('authentication')
     expect(run.attempts?.filter(a=>a.kind==='workbuddy')).toHaveLength(1)
     expect(run.verification).toContain('缩减团队')
@@ -397,12 +603,12 @@ describe('result-centred orchestration',()=>{
     })
     const r=f.start();await f.engine.settled(r.id)
     expect(f.store.run(r.id).status).toBe('partial');expect(f.calls.filter(i=>i.allowWrite)).toHaveLength(1)
-    expect(f.group.agents).not.toContain('codex')
+    expect(f.group.agents.some(member=>member.kind==='codex')).toBe(false)
   })
   test('cancelling the whole task does not kick healthy agents',async()=>{
     const f=fixture({},i=>new Promise((_resolve,reject)=>i.signal.addEventListener('abort',()=>reject(new Error('cancelled')))))
     const r=f.start();await new Promise(resolve=>setTimeout(resolve,10));await f.engine.stop(r.id)
-    expect(f.group.agents).toEqual(['codex','claude']);expect(f.store.run(r.id).excludedAgents).toHaveLength(0)
+    expect(f.group.agents.map(member=>member.id)).toEqual(['codex','claude']);expect(f.store.run(r.id).excludedAgents).toHaveLength(0)
   })
   test('manually removing one active agent aborts that member and retains per-round failure history',async()=>{
     const f=fixture({agents:['codex','claude','workbuddy']},i=>i.kind==='workbuddy'?new Promise((_resolve,reject)=>i.signal.addEventListener('abort',()=>reject(i.signal.reason))):Promise.resolve(receipt(version(i.prompt)?'approve':'ready',{reviewedVersion:version(i.prompt)})))
@@ -415,7 +621,7 @@ describe('result-centred orchestration',()=>{
     const f=fixture();f.store.save=()=>{throw new Error('disk full')}
     expect(()=>f.start()).toThrow('运行记录保存失败')
     expect(f.calls).toHaveLength(0);expect(f.store.state.runs).toHaveLength(0);expect(f.engine.busy(f.group.id)).toBe(false)
-    expect(f.group.agents).toEqual(['codex','claude'])
+    expect(f.group.agents.map(member=>member.id)).toEqual(['codex','claude'])
   })
   test('per-round process events survive restart and are never reconstructed from answer text',async()=>{
     const f=fixture({},async i=>{i.onRuntimeEvent?.({type:'tool_start',summary:'开始调用工具',detail:'Read material',progress:true});i.onRuntimeEvent?.({type:'tool_result_summary',summary:'工具执行已返回',progress:true});return receipt(version(i.prompt)?'approve':'ready',{reviewedVersion:version(i.prompt)})})
@@ -424,4 +630,28 @@ describe('result-centred orchestration',()=>{
     expect(recovered.run(r.id).attempts?.some(a=>a.events.some(e=>e.type==='tool'))).toBe(true)
     expect(recovered.run(r.id).attempts?.[0].round).toBe(1)
   })
+})
+
+for(const mode of ['auto','sequential','parallel','review'] as const)test(`${mode}: running requirements wait for settled work and invalidate earlier context`,async()=>{
+ let release!:()=>void,entered!:()=>void
+ const held=new Promise<void>(resolve=>{release=resolve}),started=new Promise<void>(resolve=>{entered=resolve})
+ let first=true;const prompts:string[]=[]
+ const f=fixture({mode,allowWrite:mode==='review',executeAfter:false},async i=>{
+  prompts.push(i.prompt)
+  if(first){first=false;entered();await held}
+  return receipt(i.prompt.includes('只读检查')?'approve':'ready',{reviewedVersion:version(i.prompt),verification:'已检查'})
+ })
+ const r=f.engine.start({groupId:f.group.id,text:mode==='review'?'制作报告文件':'分析方案',attachmentIds:[],mode})
+ await started
+ f.engine.supplement(r.id,'必须包含一个反例')
+ expect(f.store.run(r.id).contextRevision||0).toBe(0)
+ expect(f.store.run(r.id).pendingSupplements).toEqual(['必须包含一个反例'])
+ expect(prompts.every(p=>!p.includes('必须包含一个反例'))).toBe(true)
+ release();await f.engine.settled(r.id)
+ const finished=f.store.run(r.id)
+ expect(finished.contextRevision).toBe(1)
+ expect(finished.pendingSupplements).toEqual([])
+ expect(prompts.some(p=>p.includes('必须包含一个反例'))).toBe(true)
+ expect(f.store.state.messages.some(m=>m.runId===r.id&&m.role==='user'&&m.text.includes('必须包含一个反例'))).toBe(true)
+ expect(()=>f.engine.supplement(r.id,'too late')).toThrow()
 })

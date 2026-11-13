@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { ApiResult, DesktopApi } from '../shared/types'
 async function invoke<T>(name:string,...args:unknown[]):Promise<T>{
   const result=await ipcRenderer.invoke(`qwork:${name}`,...args) as ApiResult<T>
@@ -11,9 +11,14 @@ function subscribe<T>(name:string,fn:(data:T)=>void){
   return ()=>ipcRenderer.removeListener(`qwork:${name}`,listener)
 }
 const api:DesktopApi={
+  supplement:(id,text)=>invoke('supplement',id,text),
+  importFiles:(id,files)=>invoke('import-attachments',id,files.map(file=>webUtils.getPathForFile(file))),
+  pasteAttachments:id=>invoke('paste-attachments',id),
+  setGroupRounds:(id,max)=>invoke('set-group-rounds',id,max),
   adjustRounds:(id,max)=>invoke('adjust-rounds',id,max),
-  removeAgent:(id,kind)=>invoke('remove-agent',id,kind),
+  removeAgent:(id,memberId)=>invoke('remove-agent',id,memberId),
   workBuddySettings:()=>invoke('workbuddy-settings'),setWorkBuddyModel:id=>invoke('workbuddy-model',id),
+  cliInstallOptions:()=>invoke('cli-install-options'),installCli:kind=>invoke('cli-install',kind),cancelCliInstall:taskId=>invoke('cli-install-cancel',taskId),openInstallHelp:kind=>invoke('cli-install-help',kind),
   get:()=>invoke('get'),refresh:()=>invoke('refresh'),settings:input=>invoke('settings',input),
   pickDirectory:()=>invoke('pick-directory'),createGroup:input=>invoke('create-group',input),
   updateGroup:(id,input)=>invoke('update-group',id,input),renameGroup:(id,name)=>invoke('rename-group',id,name),

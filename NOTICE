@@ -5,7 +5,9 @@ Meldwork is licensed under the Apache License 2.0. See LICENSE.
 
 Qwork is an independent derivative application. Its TypeScript orchestration,
 desktop interface, IPC, storage and Windows packaging were newly implemented.
-Retained Meldwork CLI modules remain attributed to their original authors.
+Retained Meldwork CLI and Agent installer modules remain attributed to their original authors.
+The installer integration retains pinned npm recipes and integrity checks;
+Qwork limits its catalog to supported Agents and omits the skill browser.
 Qwork modifications are distributed under Apache License 2.0.
 
 Third-party Agent names, product names, and logos remain the property of their

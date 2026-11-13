@@ -16,9 +16,9 @@ export function classifyFault(error:unknown):AgentFaultInfo{
  if(/network|ECONN|ENOTFOUND|网络|连接失败/i.test(code+' '+message))return {code,category:'network',message,retryable:true}
  return {code,category:'process',message,retryable:false}
 }
-export function newAttempt(kind:InvokeInput['kind'],round:number,stage:AgentAttempt['stage'],role:string):AgentAttempt{
+export function newAttempt(kind:InvokeInput['kind'],memberId:string,round:number,stage:AgentAttempt['stage'],role:string):AgentAttempt{
  const time=new Date().toISOString()
- return {id:randomUUID(),kind,round:Math.max(1,round),stage,role,status:'running',activity:'waiting',startedAt:time,updatedAt:time,lastActivityAt:time,lastProgressAt:time,responseChars:0,events:[],droppedEvents:0}
+ return {id:randomUUID(),kind,memberId,round:Math.max(1,round),stage,role,status:'running',activity:'waiting',startedAt:time,updatedAt:time,lastActivityAt:time,lastProgressAt:time,responseChars:0,events:[],droppedEvents:0}
 }
 export function trace(attempt:AgentAttempt,type:AgentAttempt['events'][number]['type'],summary:string,detail?:string,code?:string){
  const at=new Date().toISOString();attempt.updatedAt=at

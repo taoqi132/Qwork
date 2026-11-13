@@ -4,7 +4,7 @@ import {publicRuntimeSignal,diagnosticFailure} from '../src/main/runtime-signals
 import type {InvokeInput,Runner} from '../src/shared/types'
 beforeEach(()=>vi.useFakeTimers());afterEach(()=>vi.useRealTimers())
 function setup(runner:Runner){
- const controller=new AbortController(),attempt=newAttempt('workbuddy',2,'discussing','contributor')
+ const controller=new AbortController(),attempt=newAttempt('workbuddy','workbuddy',2,'discussing','contributor')
  const input:InvokeInput={kind:'workbuddy',prompt:'not stored in trace',workdir:'.',allowWrite:false,signal:controller.signal,timeoutMs:60000,onProgress:()=>{}}
  const pending=monitoredInvoke(runner,input,attempt,{executionIdleMs:100},()=>{})
  return {controller,attempt,pending}
@@ -74,7 +74,7 @@ test('known stderr failures are classified without publishing stderr content',()
  })
  test('total execution limit still stops an agent with continuous tool feedback',async()=>{
   const input:InvokeInput={kind:'codex',prompt:'test',workdir:'.',allowWrite:false,signal:new AbortController().signal,timeoutMs:300,onProgress:()=>{}}
-  const attempt=newAttempt('codex',1,'producing','producer')
+  const attempt=newAttempt('codex','codex',1,'producing','producer')
   const pending=monitoredInvoke(i=>new Promise((_resolve,reject)=>{
    const timer=setInterval(()=>i.onRuntimeEvent?.({type:'tool_update',summary:'running'}),30)
    i.signal.addEventListener('abort',()=>{clearInterval(timer);reject(i.signal.reason)})

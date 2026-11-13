@@ -33,8 +33,9 @@ for(const kind of ['claude','workbuddy'])for(const allowWeb of [true,false])test
  const spec=cli.invocation(kind,'fixture','C:\\workspace','',{sandbox:'read-only',allowWeb})
  const flag=allowWeb?'--allowedTools':'--disallowedTools'
  const at=spec.args.indexOf(flag)
- expect(at).toBeGreaterThan(0);expect(spec.args[at+1]).toBe('WebSearch,WebFetch')
- expect(spec.args[at+2]).toBe('--permission-mode')
+ expect(at).toBeGreaterThan(0);expect(spec.args[at+1]).toBe(allowWeb?'Read,Glob,Grep,LS,WebSearch,WebFetch':'WebSearch,WebFetch')
+ expect(spec.args[spec.args.indexOf('--add-dir')+1]).toBe('C:\\workspace')
+ expect(spec.args.join(' ')).not.toMatch(/allowedTools Bash|bypassPermissions/)
  expect(spec.args[spec.args.indexOf('--permission-mode')+1]).toBe('plan')
  expect(spec.args).not.toContain('--dangerously-skip-permissions')
 })

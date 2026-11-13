@@ -1,5 +1,7 @@
+import {CliInstaller,INSTALL_HELP} from './cli-installer'
+import {clipboardFilePaths} from './clipboard-files'
 import {DecisionNotifications} from './decision-notifications'
-import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, shell, type IpcMainInvokeEvent } from 'electron'
+import { app, BrowserWindow, dialog, clipboard, ipcMain, Menu, Notification, shell, type IpcMainInvokeEvent } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -10,7 +12,8 @@ import { resolveLocale } from '../shared/locale'
 import { Store, assertDirectory, hash, within } from './storage'
 import { Workflow } from './workflow'
 import { AgentService, redact } from './agents'
-import { groupSchema, idSchema, kindSchema, sendSchema, settingsSchema } from './validation'
+import { groupSchema, idSchema, kindSchema, memberIdSchema, sendSchema, settingsSchema } from './validation'
+import { messageDisplayName } from '../shared/agent-members'
 const smoke=process.argv.find(a=>a.startsWith('--qwork-smoke='))?.split('=').slice(1).join('=')
 const packageCheck=process.argv.find(a=>a.startsWith('--qwork-package-check='))?.split('=').slice(1).join('=')
 const isolatedRoot=packageCheck||(smoke&&!app.isPackaged?smoke:null)
@@ -20,6 +23,7 @@ app.setAppUserModelId('io.qwork.desktop')
 let window:BrowserWindow|null=null
 let workflow:Workflow
 let store:Store
+let installer:CliInstaller
 let agents:AgentService
 let quitting=false
 const connectionTests=new Set<string>()
@@ -27,7 +31,7 @@ const renderer=path.join(__dirname,'../renderer/index.html')
 const rendererUrl=pathToFileURL(renderer).href
 let mockDetection:Snapshot['agentDetection']={status:'ready'}
 let mockCatalog:AgentInfo[]|null=null
-function snapshot():Snapshot{return {...structuredClone(store.state),agents:mockCatalog||agents.catalog,agentDetection:mockCatalog?mockDetection:agents.detection.state}}
+function snapshot():Snapshot{return {...structuredClone(store.state),agents:mockCatalog||agents.catalog,cliInstall:installer?.state,agentDetection:mockCatalog?mockDetection:agents.detection.state}}
 const decisionNotifications=new DecisionNotifications(()=>{
   if(smoke||packageCheck||!Notification.isSupported())return undefined
   return new Notification({title:'Qwork · '+translate('需要你的决定',store.state.settings.locale),body:translate('任务需要你补充信息或作出决定，点击查看。',store.state.settings.locale),icon:path.join(__dirname,'../../assets/qwork.ico')})
@@ -50,7 +54,7 @@ function assertIdle(groupId:string){if(workflow.busy(groupId))throw new Error('�
 function verifyMembers(input:GroupInput){
   if(!mockCatalog&&agents.detection.state.status!=='ready')throw new Error(agents.detection.state.status==='failed'?'Agent 检测失败，请重试':'正在查找本机 Agent，请稍候')
   const ready=new Set((mockCatalog||agents.catalog).filter(a=>a.installed&&a.compatible).map(a=>a.kind))
-  if(input.agents.some(k=>!ready.has(k)))throw new Error('请先在设置中安装或检测所选 Agent')
+  if(input.agents.some(member=>!ready.has(typeof member==='string'?member:member.kind)))throw new Error('请先在设置中安装或检测所选 Agent')
 }
 function handle(name:string,fn:(...args:any[])=>unknown){
   ipcMain.handle(`qwork:${name}`,async(event:IpcMainInvokeEvent,...args:unknown[])=>{
@@ -60,6 +64,16 @@ function handle(name:string,fn:(...args:any[])=>unknown){
 }
 function register(){
   handle('get',()=>snapshot())
+  handle('cli-install-options',()=>installer.catalog())
+  handle('cli-install',async(raw:unknown)=>{
+    const kind=kindSchema.parse(raw)
+    if(mockCatalog)throw new Error('界面测试模式不执行真实安装。')
+    if(workflowBusy()||connectionTests.size||agents.detection.state.status==='searching')throw new Error('请等待当前任务、连接测试或检测结束后再安装 CLI。')
+    if(agents.catalog.find(agent=>agent.kind===kind)?.installed)throw new Error('已检测到 CLI，请重新检测并检查版本，无需重复安装。')
+    return installer.start(kind)
+  })
+  handle('cli-install-cancel',(raw:unknown)=>installer.cancel(idSchema.parse(raw)))
+  handle('cli-install-help',async(raw:unknown)=>{const kind=z.enum([...AGENT_KINDS,'node']).parse(raw);if(mockCatalog){fs.writeFileSync(path.join(smoke!,'install-help.json'),JSON.stringify({kind,url:INSTALL_HELP[kind]}));return}await shell.openExternal(INSTALL_HELP[kind])})
   handle('refresh',async()=>{if(!mockCatalog)await agents.refresh();else mockDetection={status:'ready'};changed();return snapshot()})
   handle('settings',(raw:unknown)=>{store.updateSettings({...settingsSchema.parse(raw),locale:resolveLocale(settingsSchema.parse(raw).languagePreference,app.getLocale()),workBuddyModelId:store.state.settings.workBuddyModelId||''});changed();return snapshot()})
   handle('workbuddy-settings',()=>agents.workBuddySettings())
@@ -102,6 +116,25 @@ function register(){
     for(const filename of result.filePaths)imported.push(store.importAttachment(key,filename))
     changed();return imported
   })
+  const importPaths=(id:unknown,raw:unknown)=>{
+    const key=idSchema.parse(id);assertIdle(key);store.group(key)
+    const paths=z.array(z.string().min(1).max(32768)).min(1).max(10).parse(raw)
+    // Validate the entire batch before copying; retain the existing file limits.
+    for(const filename of paths){if(!path.isAbsolute(filename))throw new Error('请选择本机文件');const stat=fs.lstatSync(filename);if(stat.isSymbolicLink()||!stat.isFile()||stat.size<=0||stat.size>128*1024*1024)throw new Error('请选择非空的普通文件，单文件上限 128 MB')}
+    const result=[...new Set(paths)].map(filename=>store.importAttachment(key,filename));changed();return result
+  }
+  handle('import-attachments',importPaths)
+  handle('paste-attachments',(id:unknown)=>{
+    const key=idSchema.parse(id);assertIdle(key);store.group(key)
+    const paths=process.platform==='win32'?(clipboardFilePaths(clipboard.readBuffer('CF_HDROP'),true).length?clipboardFilePaths(clipboard.readBuffer('CF_HDROP'),true):clipboardFilePaths(clipboard.readBuffer('FileNameW'))):[]
+    if(paths.length)return importPaths(key,paths)
+    const image=clipboard.readImage()
+    if(image.isEmpty())return []
+    const data=image.toPNG();if(data.length>128*1024*1024)throw new Error('粘贴图片超过 128 MB')
+    const filename=path.join(app.getPath('userData'),`clipboard-${Date.now()}.png`)
+    fs.writeFileSync(filename,data,{flag:'wx'})
+    try{return importPaths(key,[filename])}finally{fs.unlinkSync(filename)}
+  })
   handle('discard-attachment',(id:unknown)=>{
     const key=idSchema.parse(id),a=store.state.attachments.find(a=>a.id===key)
     if(!a)return
@@ -112,12 +145,14 @@ function register(){
   handle('send',(raw:unknown)=>{
     const input=sendSchema.parse(raw),g=store.group(input.groupId)
     verifyMembers(g)
-    if((mockCatalog||agents.catalog).some(a=>g.agents.includes(a.kind)&&a.credential==='missing'))throw new Error('团队中有 Agent 尚未登录或缺少模型配置，请在原生 CLI 中完成配置后重新检测')
+    if((mockCatalog||agents.catalog).some(a=>g.agents.some(member=>member.kind===a.kind)&&a.credential==='missing'))throw new Error('团队中有 Agent 尚未登录或缺少模型配置，请在原生 CLI 中完成配置后重新检测')
     return workflow.start(input)
   })
   handle('stop',async(id:unknown)=>{await workflow.stop(idSchema.parse(id))})
+  handle('set-group-rounds',(id:unknown,max:unknown)=>workflow.setGroupRounds(idSchema.parse(id),z.number().int().min(1).max(8).parse(max)))
+  handle('supplement',(id:unknown,text:unknown)=>workflow.supplement(idSchema.parse(id),z.string().trim().min(1).max(4000).parse(text)))
   handle('adjust-rounds',(id:unknown,max:unknown)=>workflow.adjustRounds(idSchema.parse(id),z.number().int().min(1).max(8).parse(max)))
-  handle('remove-agent',(id:unknown,kind:unknown)=>workflow.removeAgent(idSchema.parse(id),kindSchema.parse(kind)))
+  handle('remove-agent',(id:unknown,memberId:unknown)=>workflow.removeAgent(idSchema.parse(id),memberIdSchema.parse(memberId)))
   handle('retry-execution',(id:unknown)=>{const key=idSchema.parse(id);verifyMembers(store.group(store.run(key).groupId));return workflow.retryExecution(key)})
   handle('decide',(id:unknown,response:unknown,gateId:unknown)=>workflow.decide(idSchema.parse(id),z.string().trim().min(1).max(48000).parse(response),gateId===undefined?undefined:idSchema.parse(gateId)))
   handle('open-output',async(id:unknown)=>{
@@ -138,7 +173,7 @@ function register(){
     const result=await dialog.showSaveDialog(window!,{defaultPath:`Qwork-${run.id.slice(0,8)}.md`,filters:[{name:'Markdown',extensions:['md']}]})
     if(result.canceled||!result.filePath)return
     const messages=store.state.messages.filter(m=>m.runId===run.id)
-    const report=[`# ${group.name}`,`任务：${run.task}`,`状态：${run.status}`,`结论：${run.summary}`,`检查范围（Agent 报告）：${run.verification}`,...store.state.artifacts.filter(a=>a.runId===run.id).map(a=>`- ${a.name} (${a.size} bytes, SHA-256: ${a.sha256})`),'## 协作记录',...messages.map(m=>`### ${m.agent?LABELS[m.agent]:m.role} · ${m.stage}\n\n${m.text}`)].join('\n\n')
+    const report=[`# ${group.name}`,`任务：${run.task}`,`状态：${run.status}`,`结论：${run.summary}`,`检查范围（Agent 报告）：${run.verification}`,...store.state.artifacts.filter(a=>a.runId===run.id).map(a=>`- ${a.name} (${a.size} bytes, SHA-256: ${a.sha256})`),'## 协作记录',...messages.map(m=>`### ${m.agent?messageDisplayName(m,run.settings.agents):m.role} · ${m.stage}\n\n${m.text}`)].join('\n\n')
     fs.writeFileSync(result.filePath,redact(report),'utf8')
   })
   handle('diagnostics',async()=>{
@@ -166,10 +201,12 @@ async function launch(){
   store=new Store(userData,path.join(userData,'projects'))
   store.state.settings.locale=resolveLocale(store.state.settings.languagePreference,app.getLocale());store.save()
   agents=new AgentService(userData,()=>store.state.settings.workBuddyModelId||'',()=>store.state.settings.allowWeb!==false,()=>store.state.settings.agentModels||{},()=>changed())
+  installer=new CliInstaller(async()=>{await agents.refresh()},()=>changed())
   let runner=agents.runner
   if(smoke&&!app.isPackaged){
     store.state.settings.locale='zh';store.state.settings.languagePreference='zh';store.save()
-    mockCatalog=AGENT_KINDS.map(kind=>({kind,label:LABELS[kind],installed:true,compatible:true,credential:'ready',version:'SMOKE FIXTURE',source:'仅开发测试'}))
+    mockDetection={status:'searching'}
+    mockCatalog=AGENT_KINDS.map(kind=>({kind,label:LABELS[kind],installed:true,compatible:true,credential:'ready',version:'SMOKE FIXTURE',source:'未检测'}))
     runner=async input=>{
       await new Promise(r=>setTimeout(r,input.prompt.includes('[SMOKE_ROUNDS]')?1200:60))
       if(input.signal.aborted)throw new Error('stopped')
@@ -209,7 +246,7 @@ async function launch(){
     }catch(error:any){fs.writeFileSync(path.join(packageCheck,'failure.txt'),redact(error.stack||error));app.exit(1)}
   }else if(smoke&&!app.isPackaged){
     const {runSmoke}=await import('./smoke')
-    try{await runSmoke(window,smoke,(groupId,filename)=>{store.importAttachment(groupId,filename);changed()},status=>{mockDetection={status};changed()});app.quit()}catch(error:any){fs.writeFileSync(path.join(smoke,'failure.txt'),String(error.stack||error));app.exit(1)}
+    try{await runSmoke(window,smoke,(groupId,filename)=>{store.importAttachment(groupId,filename);changed()},(status,onlyKind)=>{mockDetection={status};mockCatalog=mockCatalog?.map(agent=>({...agent,installed:onlyKind?agent.kind===onlyKind:true,source:status==='searching'?'未检测':'仅开发测试'}))||null;changed()});app.quit()}catch(error:any){fs.writeFileSync(path.join(smoke,'failure.txt'),String(error.stack||error));app.exit(1)}
   }else agents.refresh().then(changed).catch(error=>{console.error(redact(error.message))})
 }
 if(!app.requestSingleInstanceLock())app.quit()
@@ -220,6 +257,6 @@ else{
   app.on('before-quit',event=>{
     if(quitting||!workflow)return
     event.preventDefault();quitting=true
-    Promise.allSettled([workflow.shutdown(),agents.shutdown()]).finally(()=>app.quit())
+    Promise.allSettled([workflow.shutdown(),agents.shutdown(),installer?.shutdown()]).finally(()=>app.quit())
   })
 }

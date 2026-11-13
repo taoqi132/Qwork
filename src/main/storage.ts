@@ -2,6 +2,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
 import type { Artifact, Attachment, Group, GroupInput, Run, Settings, State } from '../shared/types'
+import {excludedMemberId} from '../shared/agent-members'
+import {migrateState,normalizeGroupInput} from './state-migration'
 
 export const now = () => new Date().toISOString()
 export const hash = (v:string|Buffer) => createHash('sha256').update(v).digest('hex')
@@ -40,14 +42,14 @@ export class Store {
   readonly filename:string
   constructor(readonly dataDirectory:string,defaultDirectory:string){
     fs.mkdirSync(dataDirectory,{recursive:true}); this.filename=path.join(dataDirectory,'workspace.json')
-    const initial:State={version:1,settings:{defaultDirectory,maxRounds:5,locale:'zh',timeoutMinutes:30},groups:[],attachments:[],messages:[],runs:[],artifacts:[]}
+    const initial:State={version:2,settings:{defaultDirectory,maxRounds:5,locale:'zh',timeoutMinutes:30},groups:[],attachments:[],messages:[],runs:[],artifacts:[]}
     if(fs.existsSync(this.filename)){
       const raw=JSON.parse(fs.readFileSync(this.filename,'utf8'))
-      if(raw.version!==1||!['groups','runs','messages','attachments','artifacts'].every(k=>Array.isArray(raw[k])))throw new Error('工作区数据格式不支持，请保留原文件后联系维护者')
-      this.state=raw
+      if(!['groups','runs','messages','attachments','artifacts'].every(k=>Array.isArray(raw[k])))throw new Error('工作区数据格式不支持，请保留原文件后联系维护者')
+      this.state=migrateState(raw)
     }else this.state=initial
     for(const run of this.state.runs) if(['running','waiting'].includes(run.status)){
-      run.status='interrupted';run.stage='finished';run.finishedAt=now();run.summary='应用已退出，本次任务中断。已有文件保留，重新执行前请检查。'; delete run.gate;run.activeAgents=[];delete run.currentAgent
+      run.status='interrupted';run.stage='finished';run.finishedAt=now();run.summary='应用已退出，本次任务中断。已有文件保留，重新执行前请检查。'; delete run.gate;run.activeAgents=[];run.activeMemberIds=[];delete run.currentAgent;delete run.currentMemberId
       for(const attempt of run.attempts||[])if(attempt.status==='running'){attempt.status='interrupted';attempt.finishedAt=now();attempt.events.push({id:randomUUID(),at:now(),type:'warning',summary:'应用已退出，本轮调用中断。'})}
     }
     delete (this.state.settings as Settings & {accentColor?:string}).accentColor
@@ -63,17 +65,18 @@ export class Store {
   }
   group(id:string):Group{const g=this.state.groups.find(g=>g.id===id);if(!g)throw new Error('群聊不存在');return g}
   run(id:string):Run{const r=this.state.runs.find(r=>r.id===id);if(!r)throw new Error('任务不存在');return r}
-  createGroup(input:GroupInput){
+  createGroup(raw:GroupInput){
+    const input=normalizeGroupInput(raw)
     const id=randomUUID()
     const workdir=assertDirectory(input.workdir||path.join(this.state.settings.defaultDirectory,`project-${id.slice(0,8)}`))
     const fallback=this.state.settings.locale==='en'?(input.kind==='direct'?'Untitled conversation':'Untitled group'):(input.kind==='direct'?'未命名对话':'未命名群聊')
     const group:Group={...input,summarizer:input.executor,id,workdir,name:input.name.trim()||fallback,createdAt:now(),updatedAt:now()}
     this.state.groups.unshift(group);this.save();return group
   }
-  updateGroup(id:string,input:GroupInput){
-    const group=this.group(id)
+  updateGroup(id:string,raw:GroupInput){
+    const group=this.group(id),input=normalizeGroupInput(raw)
     const workdir=assertDirectory(input.workdir||group.workdir)
-    Object.assign(group,input,{summarizer:input.executor,workdir,updatedAt:now()});group.excludedAgents=group.excludedAgents?.filter(a=>!input.agents.includes(a.kind));this.save();return group
+    Object.assign(group,input,{summarizer:input.executor,workdir,updatedAt:now()});group.excludedAgents=group.excludedAgents?.filter(a=>!input.agents.some(member=>member.id===excludedMemberId(a)));this.save();return group
   }
   importAttachment(groupId:string,source:string):Attachment{
     const group=this.group(groupId),stat=fs.lstatSync(source)

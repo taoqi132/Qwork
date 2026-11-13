@@ -102,6 +102,8 @@ The app supports Chinese and English, light/dark/system appearance, single-agent
 
 **Supports Windows 10/11 x64. Qwork itself does not require a separate Node.js installation; configure at least one supported Agent CLI before use.** Group collaboration requires at least two available agents.
 
+Missing CLIs offer an install action under **Settings & Agents → Local agents**. Codex, Claude Code, WorkBuddy, OpenClaw and Qwen Code use upstream pinned npm recipes with integrity checks, explicit confirmation, cancellation and post-install detection. Quick installation requires system Node.js and npm. Sign-in and model setup remain in the native CLI. Zcode links to its official setup page. Installing a desktop app does not necessarily provide its CLI.
+
 | Launch method | Requirements |
 | --- | --- |
 | Windows installer / packaged portable directory | Includes Electron and Node.js. No separate Node.js, npm or Python installation is needed for Qwork itself. |

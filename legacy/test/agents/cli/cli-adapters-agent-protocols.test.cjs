@@ -1,3 +1,4 @@
+// Qwork modification: expect scoped native read-tool permissions and the working-directory grant.
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const crypto = require('node:crypto')
@@ -173,6 +174,7 @@ test('WorkBuddy uses non-interactive output and resumes its native session', () 
   assert.equal(spec.promptArg, true)
   assert.deepEqual(spec.args, [
     '--print', '--output-format', 'stream-json', '--include-partial-messages',
+    '--allowedTools', 'Read,Glob,Grep,LS', '--add-dir', '/tmp/work',
     '--permission-mode', 'plan',
     '--max-turns', '8', '--resume', 'workbuddy-session',
   ])
@@ -1074,6 +1076,7 @@ test('Claude uses partial stream JSON and resumes its native session', () => {
   const spec = invocation('claude', '/tmp/claude', '/tmp/work', 'claude-session')
   assert.deepEqual(spec.args, [
     '--print', '--output-format', 'stream-json', '--include-partial-messages', '--verbose',
+    '--allowedTools', 'Read,Glob,Grep,LS', '--add-dir', '/tmp/work',
     '--permission-mode', 'plan',
     '--resume', 'claude-session',
   ])

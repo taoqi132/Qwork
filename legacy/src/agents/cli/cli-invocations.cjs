@@ -166,7 +166,10 @@ function invocation(kind, executable, workdir, sessionRef = '', options = {}) {
         // Workspace write access means accepting file edits in the working
         // directory. Skipping every permission check would also let the CLI
         // run any command anywhere on the machine without confirmation.
-        ...(typeof options.allowWeb === 'boolean' ? [options.allowWeb ? '--allowedTools' : '--disallowedTools', 'WebSearch,WebFetch'] : []),
+        // Qwork: explicitly authorize native read tools in non-interactive turns.
+        '--allowedTools', ['Read','Glob','Grep','LS',...(options.allowWeb === true ? ['WebSearch','WebFetch'] : []),...(options.readCommands || []).map(command => `Bash(${command})`)].join(','),
+        ...(options.allowWeb === false ? ['--disallowedTools','WebSearch,WebFetch'] : []),
+        '--add-dir', workdir,
         '--permission-mode', options.sandbox === 'workspace-write' ? 'acceptEdits' : 'plan',
         ...(maxTurns ? ['--max-turns', String(maxTurns)] : []),
         ...(options.model ? ['--model', options.model] : []),
@@ -239,7 +242,9 @@ function invocation(kind, executable, workdir, sessionRef = '', options = {}) {
         '--output-format', 'stream-json',
         '--include-partial-messages',
         '--verbose',
-        ...(typeof options.allowWeb === 'boolean' ? [options.allowWeb ? '--allowedTools' : '--disallowedTools', 'WebSearch,WebFetch'] : []),
+        '--allowedTools', ['Read','Glob','Grep','LS',...(options.allowWeb === true ? ['WebSearch','WebFetch'] : []),...(options.readCommands || []).map(command => `Bash(${command})`)].join(','),
+        ...(options.allowWeb === false ? ['--disallowedTools','WebSearch,WebFetch'] : []),
+        '--add-dir', workdir,
         '--permission-mode', options.sandbox === 'workspace-write' ? 'acceptEdits' : 'plan',
         ...(sessionRef ? ['--resume', sessionRef] : []),
       ],

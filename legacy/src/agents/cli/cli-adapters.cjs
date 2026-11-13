@@ -142,6 +142,8 @@ async function runAgent(agent, prompt, workdir, options = {}) {
   const spec = invocation(agent.kind, agent.executable, workdir, sessionRef, {
     platform,
     sandbox: options.sandbox,
+    // Qwork: forward internally generated exact read-only commands.
+    readCommands: options.readCommands,
     allowWeb: options.allowWeb,
     attachments: options.attachments,
     hermesAcpAvailable,

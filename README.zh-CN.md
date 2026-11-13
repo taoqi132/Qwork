@@ -102,6 +102,8 @@ PPT 制作与渲染需要所选 Agent 环境具备相应工具。[查看更多�
 
 **支持 Windows 10/11 x64，应用无需额外安装 Node.js；使用前请配置至少一个受支持的 Agent CLI。** 群聊需要至少两个可用 Agent。
 
+在「设置与 Agent → 本机 Agent」中，缺少 CLI 的项目提供快捷安装。Codex、Claude Code、WorkBuddy、OpenClaw 和 Qwen Code 沿用原项目的固定 npm 版本与校验配方；确认后才安装，支持取消和安装后检测。快捷安装需要系统 Node.js 与 npm，安装完成后仍需在原生 CLI 登录和配置模型。Zcode 提供官方配置入口。已安装桌面端不代表 CLI 可调用。
+
 | 启动方式 | 环境要求 |
 | --- | --- |
 | Windows 安装包／打包后的免安装目录 | 自带 Electron 与 Node.js 运行时，无需为 Qwork 本身额外安装 Node.js、npm 或 Python。 |
