@@ -4,9 +4,9 @@
 
 # Qwork
 
-### Your agents. One brief. A deliverable.
+### Give the draft to one agent and the finished file to another for review
 
-Turn project materials into a proposal, report or presentation—with your local agents working together and reviewing the result.
+Qwork brings your agent CLIs into one Windows workspace. Share the brief and source files once, follow the discussion, then open the deliverable alongside the reviewer’s notes.
 
 **Codex · Claude Code · WorkBuddy · Zcode · OpenClaw · Qwen Code**
 
@@ -25,21 +25,15 @@ Turn project materials into a proposal, report or presentation—with your local
 
 <sub>Actual Electron UI, switched to English before capture. Screenshots use isolated demonstration data and simulated agents.</sub>
 
-## Spend less time relaying answers
+## Try it with a weekly report
 
-You have project notes, research material and a result to deliver. Working across several agents often means copying context between terminals, reconciling their answers and asking someone to check the final file.
+Drop this week’s meeting notes and last week’s report into **Create & Review**. Choose one member to write and another to check the result. Start with a brief like this:
 
-Qwork puts that work in one place: **give the team a brief, choose how it collaborates, and keep the final answer or files alongside the review.** Your existing CLIs provide the models and tools; Qwork coordinates the work.
+> Update the weekly report from the meeting notes. Carry forward any open risks and cite a source for each progress update. Before delivery, check the dates, owners and figures against the notes. Flag anything the sources don’t support.
 
-- **Choose how the team works.** Discuss together, build on earlier answers, compare independent perspectives, or start with a draft and review it.
-- **Stay in control.** See who is discussing, moderating, creating or reviewing. Answer critical questions when the team needs your decision.
-- **Keep the result close.** Open the delivered file from the conversation or the files panel, with the review alongside it.
+The reviewer gets the same file the creator just produced. If a figure needs correcting, the feedback goes back to the creator. Open the report from the conversation and read the review alongside it to see what was checked and what still needs your judgment.
 
-Try a brief like this:
-
-> Use the attached project materials to create a management presentation. Cover progress, key metrics, risks and next steps. Ask about critical gaps, preserve the sources and have another agent review the actual deliverable.
-
-Presentation creation and rendering require suitable tools in the chosen agent environment. [More briefs to try →](examples/README.md)
+[Try another sample brief →](examples/README.md)
 
 ## What would you like to finish?
 
@@ -100,7 +94,7 @@ The app supports Chinese and English, light/dark/system appearance, single-agent
 
 ## Get started
 
-**Supports Windows 10/11 x64. Qwork itself does not require a separate Node.js installation; configure at least one supported Agent CLI before use.** Group collaboration requires at least two available agents.
+**Windows 10/11 x64.** The packaged app includes its own runtime. Configure one supported CLI for a direct chat. A group needs at least two member instances. For example, with only Codex installed, you can add two Codex instances and assign one to create and the other to review. OpenClaw supports one instance per group.
 
 Missing CLIs offer an install action under **Settings & Agents → Local agents**. Codex, Claude Code, WorkBuddy, OpenClaw and Qwen Code use upstream pinned npm recipes with integrity checks, explicit confirmation, cancellation and post-install detection. Quick installation requires system Node.js and npm. Sign-in and model setup remain in the native CLI. Zcode links to its official setup page. Installing a desktop app does not necessarily provide its CLI.
 
@@ -112,7 +106,7 @@ Missing CLIs offer an install action under **Settings & Agents → Local agents*
 
 The current release target is x64, not 32-bit Windows; ARM devices have not been verified. Not every Windows 10/11 version has been compatibility-tested. The unsigned installer may trigger Windows security prompts or be restricted by enterprise policy.
 
-You need **Windows x64**, **Node.js 22.12+**, npm, and the agent CLIs you want to use. Install and configure the CLIs separately; a group requires at least two available agents. No Qwork account or required application server.
+Qwork requires no separate account. Each agent uses its own sign-in and model configuration.
 
 ### Double-click from source
 
@@ -175,7 +169,7 @@ scripts/        Build, test and screenshot tooling
 
 [Contributing](CONTRIBUTING.md)
 
-**Validation:** 105 Qwork tests, type checks, production builds and Electron fixture acceptance passed locally. These checks use fixture agents; live provider and file-format coverage remains incomplete.
+**Local validation for 0.1.5** · Type checking and the production build passed, along with 173 tests across 24 files and 25 Electron desktop checks using simulated agents. Live providers and individual deliverable formats still need use-case-specific verification.
 
 <details>
 <summary>Developer checks and screenshot generation</summary>
