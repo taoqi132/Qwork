@@ -94,6 +94,7 @@ export class AgentService {
         },
         onPermissionRequest:(request:any)=>{
           input.onRuntimeEvent?.({type:'permission',summary:'CLI 请求工具权限，正在按当前授权范围处理。',progress:true})
+          if(!allowWeb&&request.toolCall?.kind==='fetch')return null
           const decision=automaticPermissionResponse(request,{allowWrite:input.allowWrite})
           input.onRuntimeEvent?.({type:'status',summary:'权限请求已按当前授权策略处理。',progress:true})
           return decision

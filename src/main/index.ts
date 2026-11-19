@@ -240,7 +240,7 @@ async function launch(){
       }
       const rendererState=await window.webContents.executeJavaScript('window.qwork.get()')
       const fourModes=await window.webContents.executeJavaScript("document.querySelectorAll('.mode-card').length===4")
-      if(rendererState.agents.length!==6||!fourModes)throw new Error('Packaged renderer / IPC verification failed')
+      if(rendererState.agents.length!==AGENT_KINDS.length||!fourModes)throw new Error('Packaged renderer / IPC verification failed')
       fs.writeFileSync(path.join(packageCheck,'result.json'),JSON.stringify({ok:true,packaged:app.isPackaged,version:app.getVersion(),modes:4,agents:rendererState.agents.map((a:AgentInfo)=>({kind:a.kind,installed:a.installed})),mockProvider:false},null,2))
       app.quit()
     }catch(error:any){fs.writeFileSync(path.join(packageCheck,'failure.txt'),redact(error.stack||error));app.exit(1)}

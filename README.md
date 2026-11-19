@@ -8,7 +8,7 @@
 
 Qwork brings your agent CLIs into one Windows workspace. Share the brief and source files once, follow the discussion, then open the deliverable alongside the reviewer’s notes.
 
-**Codex · Claude Code · WorkBuddy · Zcode · OpenClaw · Qwen Code**
+**Codex · Claude Code · WorkBuddy · Zcode · OpenClaw · Qwen Code · OpenCode · GitHub Copilot CLI · Cursor CLI**
 
 **English** · [简体中文](README.zh-CN.md)
 
@@ -79,7 +79,9 @@ A desktop notification takes you back to the right task. Clarification waits for
 
 ### Bring the agents you already use
 
-**Codex · Claude Code · WorkBuddy · Zcode · OpenClaw · Qwen Code**
+**Codex · Claude Code · WorkBuddy · Zcode · OpenClaw · Qwen Code · OpenCode · GitHub Copilot CLI · Cursor CLI**
+
+OpenCode, GitHub Copilot CLI and Cursor CLI use their native sign-in and model settings. Open the official setup guide on the agent card, install the CLI, then refresh detection and test the connection. Cursor uses the agent or cursor-agent command.
 
 Use native sign-in and provider configuration. Set model IDs for Codex, Claude Code and Qwen Code, or choose a configured WorkBuddy model. Zcode and OpenClaw currently follow native model configuration. WorkBuddy uses the `codebuddy` command.
 
@@ -149,7 +151,7 @@ The installer is generated under `release/`. It bundles the application runtime;
 
 Qwork manages attachment copies, paths, metadata and fingerprints. Agents read the contents using their own tools. Office/PDF reading, OCR, file generation and page rendering depend on the chosen CLI, model and installed tools. Review notes distinguish checked content from unverified visual layout.
 
-The web setting maps to the six native adapters. Provider support, credentials, network access and native policy still determine whether search works. CLI permissions are not an OS-level firewall or sandbox.
+Web controls depend on each CLI’s native tools and permission protocol. Provider support, credentials, network access and native policy still determine whether search works. CLI permissions are not an OS-level firewall or sandbox.
 
 </details>
 
@@ -169,7 +171,7 @@ scripts/        Build, test and screenshot tooling
 
 [Contributing](CONTRIBUTING.md)
 
-**Local validation for 0.1.5** · Type checking and the production build passed, along with 177 tests across 24 files and 25 Electron desktop checks using simulated agents. Live providers and individual deliverable formats still need use-case-specific verification.
+**Local validation for 0.1.5** · Type checking and the production build passed, along with 180 tests across 24 files and 25 Electron desktop checks using simulated agents. Live providers and individual deliverable formats still need use-case-specific verification.
 
 <details>
 <summary>Developer checks and screenshot generation</summary>

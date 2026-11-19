@@ -29,7 +29,7 @@ export async function captureDocumentation(window:BrowserWindow,directory:string
   await wait("!!document.querySelector('.deliverables-panel')&&!!document.querySelector('.agent-message[open]')")
   await js("(()=>{const el=document.querySelector('.conversation-scroll');el.scrollTop=el.scrollHeight})()")
   await capture(`docs-${language}-delivery.png`,locale)
-  await click(settings);await wait("document.querySelectorAll('.agent-setting-card').length===6")
+  await click(settings);await wait("document.querySelectorAll('.agent-setting-card').length===9")
   await capture(`docs-${language}-agents.png`,locale)
   await js("document.querySelector('#settings-tab-execution').click()")
   await wait("!!document.querySelector('[data-testid=allow-web]')")

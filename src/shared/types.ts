@@ -1,6 +1,6 @@
-export const AGENT_KINDS = ['codex', 'claude', 'workbuddy', 'zcode', 'openclaw', 'qwen'] as const
+export const AGENT_KINDS = ['codex', 'claude', 'workbuddy', 'zcode', 'openclaw', 'qwen', 'opencode', 'copilot', 'cursor'] as const
 export type AgentKind = typeof AGENT_KINDS[number]
-export const LABELS: Record<AgentKind, string> = {codex:'Codex',claude:'Claude Code',workbuddy:'WorkBuddy',zcode:'Zcode',openclaw:'OpenClaw',qwen:'Qwen Code'}
+export const LABELS: Record<AgentKind, string> = {codex:'Codex',claude:'Claude Code',workbuddy:'WorkBuddy',zcode:'Zcode',openclaw:'OpenClaw',qwen:'Qwen Code',opencode:'OpenCode',copilot:'GitHub Copilot CLI',cursor:'Cursor CLI'}
 export type MemberId = string
 export interface AgentMember {id:MemberId;kind:AgentKind;model?:string}
 export type Mode = 'review' | 'parallel' | 'sequential' | 'auto'

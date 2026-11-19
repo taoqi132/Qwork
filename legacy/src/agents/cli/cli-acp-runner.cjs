@@ -985,6 +985,7 @@ async function runAcpTurn(runtime, prompt, options, spec, profile) {
         }))
         visibleSessionRef = protocolSessionRef
       } else {
+        if (spec.authMethod) await operation(runtime.connection.authenticate({ methodId: spec.authMethod }))
         const session = await operation(runtime.connection.newSession({
           cwd: runtime.workdir,
           mcpServers: [],

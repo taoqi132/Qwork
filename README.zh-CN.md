@@ -8,7 +8,7 @@
 
 Qwork 是 Windows 上的多 Agent 协作工作台。把资料和任务交给你已经在用的 CLI，在同一段对话里看它们讨论方案、修改文件，并说明最后检查了什么。
 
-**Codex · Claude Code · WorkBuddy · Zcode · OpenClaw · Qwen Code**
+**Codex · Claude Code · WorkBuddy · Zcode · OpenClaw · Qwen Code · OpenCode · GitHub Copilot CLI · Cursor CLI**
 
 [English](README.md) · **简体中文**
 
@@ -79,7 +79,9 @@ Qwork 是 Windows 上的多 Agent 协作工作台。把资料和任务交给你�
 
 ### 继续使用你熟悉的 Agent
 
-**Codex · Claude Code · WorkBuddy · Zcode · OpenClaw · Qwen Code**
+**Codex · Claude Code · WorkBuddy · Zcode · OpenClaw · Qwen Code · OpenCode · GitHub Copilot CLI · Cursor CLI**
+
+OpenCode、GitHub Copilot CLI 和 Cursor CLI 沿用原生模型与登录配置。从设置卡片打开官方安装说明，安装后重新检测并测试连接。Cursor 使用 agent 或 cursor-agent 命令。
 
 沿用原生登录与服务配置。Codex、Claude Code、Qwen Code 可指定模型 ID；WorkBuddy 可选择已配置模型；Zcode、OpenClaw 暂跟随原生模型配置。WorkBuddy 使用 `codebuddy` 命令。
 
@@ -149,7 +151,7 @@ npm run dist:win
 
 Qwork 管理附件副本、路径、元数据与哈希，由 Agent 使用自己的工具读取内容。Office／PDF 读取、OCR、文件制作和页面渲染取决于所选 CLI、模型与本机工具。检查说明会区分已核对的内容与尚未验证的视觉排版。
 
-联网开关适配六种 CLI 的原生工具；搜索是否可用仍取决于服务商、凭据、网络和原生策略。CLI 权限模式不等于操作系统级防火墙或沙箱。
+联网控制取决于各 CLI 的原生工具和权限协议；搜索是否可用仍取决于服务商、凭据、网络和原生策略。CLI 权限模式不等于操作系统级防火墙或沙箱。
 
 </details>
 
@@ -169,7 +171,7 @@ scripts/        构建、测试与截图工具
 
 [参与贡献](CONTRIBUTING.md)
 
-**0.1.5 本地验证记录** · 类型检查和生产构建通过，24 个测试文件中的 177 项测试通过。使用模拟 Agent 的 Electron 桌面验收通过 25 项检查。真实模型服务和交付文件格式仍需按使用场景验证。
+**0.1.5 本地验证记录** · 类型检查和生产构建通过，24 个测试文件中的 180 项测试通过。使用模拟 Agent 的 Electron 桌面验收通过 25 项检查。真实模型服务和交付文件格式仍需按使用场景验证。
 
 <details>
 <summary>开发检查与截图生成</summary>

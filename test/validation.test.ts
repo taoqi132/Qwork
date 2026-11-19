@@ -17,11 +17,11 @@ describe('group member validation',()=>{
     expect(parse({agents:['codex','claude','workbuddy','zcode','openclaw','qwen','codex']}).success).toBe(true)
     expect(parse({agents:[{id:'codex-3',kind:'codex'},{id:'claude',kind:'claude'}]}).success).toBe(false)
   })
-  test('accepts all eleven permitted instances without a total member cap',()=>{
+  test('accepts all seventeen permitted instances without a total member cap',()=>{
     const agents=AGENT_KINDS.flatMap<AgentMember>(kind=>kind==='openclaw'?[{id:kind,kind}]:[{id:kind,kind},{id:`${kind}-2`,kind}])
     const result=parse({agents,moderator:'claude-2',executor:'codex-2',summarizer:'codex-2'})
     expect(result.success).toBe(true)
-    if(result.success)expect(result.data.agents).toHaveLength(11)
+    if(result.success)expect(result.data.agents).toHaveLength(17)
     expect(parse({agents:[...agents,{id:'qwen-3',kind:'qwen'}]}).success).toBe(false)
   })
   test('rejects OpenClaw copies and models on CLIs without --model',()=>{

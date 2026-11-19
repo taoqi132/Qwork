@@ -322,14 +322,14 @@ describe('result-centred orchestration',()=>{
     expect(f.calls.filter(i=>i.kind==='codex').every(i=>i.modelId==='fixture/model-a')).toBe(true)
     expect(f.calls.find(i=>i.kind==='claude')?.modelId).toBe('fixture/model-b')
   })
-  test('all eleven permitted instances contribute without a total group limit',async()=>{
+  test('all seventeen permitted instances contribute without a total group limit',async()=>{
     const agents=AGENT_KINDS.flatMap<import('../src/shared/types').AgentMember>(kind=>kind==='openclaw'?[{id:kind,kind}]:[{id:kind,kind},{id:`${kind}-2`,kind}])
     const f=fixture({mode:'parallel',agents,moderator:'claude-2',summarizer:'codex-2',executor:'codex-2'})
     const r=f.start();await f.engine.settled(r.id)
     const run=f.store.run(r.id)
     expect(run.status).toBe('completed')
-    expect(run.participants).toHaveLength(11)
-    expect(new Set(run.attempts?.filter(a=>a.role==='contributor').map(a=>a.memberId)).size).toBe(11)
+    expect(run.participants).toHaveLength(17)
+    expect(new Set(run.attempts?.filter(a=>a.role==='contributor').map(a=>a.memberId)).size).toBe(17)
     expect(run.attempts?.find(a=>a.role==='finalizer')?.memberId).toBe('codex-2')
   })
   test('two instances of one Agent run as independent members with their own models',async()=>{

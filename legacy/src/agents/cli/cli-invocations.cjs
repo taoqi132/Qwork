@@ -277,6 +277,17 @@ function invocation(kind, executable, workdir, sessionRef = '', options = {}) {
       promptArg: true,
     }
   }
+  // Qwork: use ACP permission requests and native read-only modes.
+  if (kind === 'copilot') {
+    const args = ['--acp', '--stdio']
+    if (options.sandbox !== 'workspace-write') args.push('--deny-tool', 'write', '--deny-tool', 'shell')
+    if (options.allowWeb === false) args.push('--deny-tool', 'url')
+    return { command: executable, args, eventTransport: 'acp' }
+  }
+  if (kind === 'cursor') {
+    const args = options.sandbox === 'workspace-write' ? ['acp'] : ['--mode=ask', 'acp']
+    return { command: executable, args, eventTransport: 'acp', authMethod: 'cursor_login' }
+  }
   if (kind === 'opencode') {
     if (!attachments.length && options.invocationTransport !== 'json') {
       return {

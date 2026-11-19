@@ -24,7 +24,7 @@ export const groupSchema = rawGroupSchema.transform(input=>({...input,agents:nor
     if(count>2)ctx.addIssue({code:'custom',path:['agents'],message:'同一个 Agent 最多选择两个实例'})
     if(member.id!==member.kind&&member.id!==`${member.kind}-2`)ctx.addIssue({code:'custom',path:['agents'],message:'成员实例标识无效'})
     const model=member.model?.trim()||''
-    if(model&&['zcode','openclaw'].includes(member.kind))ctx.addIssue({code:'custom',path:['agents'],message:'该 Agent 不支持在群聊中指定模型'})
+    if(model&&['zcode','openclaw','opencode','copilot','cursor'].includes(member.kind))ctx.addIssue({code:'custom',path:['agents'],message:'该 Agent 不支持在群聊中指定模型'})
     if(model&&['codex','claude','qwen'].includes(member.kind)&&!modelPattern.test(model))ctx.addIssue({code:'custom',path:['agents'],message:'模型 ID 只能包含字母、数字和 . _ : / @ + -'})
   }
   if((counts.get('openclaw')||0)>1)ctx.addIssue({code:'custom',path:['agents'],message:'OpenClaw 暂不支持复制：两个实例会共用运行时配置，可能互相覆盖。'})

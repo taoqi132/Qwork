@@ -62,7 +62,7 @@ test('no npm and unsupported agents fail before a process is launched',async()=>
  expect(installRecipe('hermes','win32')).toBeNull()
  expect(f.runProcess).not.toHaveBeenCalled()
  const catalog=await f.installer.catalog()
- expect(catalog).toHaveLength(6)
+ expect(catalog).toHaveLength(9)
  expect(catalog.find(a=>a.kind==='codex')?.reason).toContain('Node.js')
  expect(catalog.find(a=>a.kind==='zcode')?.supported).toBe(false)
 })

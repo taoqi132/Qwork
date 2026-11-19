@@ -33,7 +33,7 @@ onUnmounted(()=>{clearInterval(ticker);clearTimeout(finish)})
 <section class="startup" :aria-label="t('启动检测')">
   <main class="startup-panel">
     <header class="startup-brand"><img :src="logo" alt="" width="42" height="42"><span>Qwork</span></header>
-    <div class="startup-heading"><h1 role="status" aria-live="polite">{{ t(title) }}</h1><span class="scan-count">{{ count }}<span> / 6</span></span></div>
+    <div class="startup-heading"><h1 role="status" aria-live="polite">{{ t(title) }}</h1><span class="scan-count">{{ count }}<span> / {{ rows.length }}</span></span></div>
     <p class="startup-description">{{ t(terminal&&!ready?'可前往设置配置 Agent，或先进入工作台。':'检查完成后自动进入工作台。') }}</p>
     <div class="startup-agents">
       <div v-for="row in rows" :key="row.kind" :class="['startup-agent',row.state]">
@@ -41,7 +41,7 @@ onUnmounted(()=>{clearInterval(ticker);clearTimeout(finish)})
         <span class="agent-scan-status"><span v-if="row.state==='searching'" class="scan-spinner"></span><Icon v-else-if="row.state==='found'" name="check" :size="13"/><span>{{ t(row.label) }}</span><button v-if="row.state==='absent'" type="button" class="text-button startup-install-link" @click="enter(true)">{{ t('查看安装') }}</button></span>
       </div>
     </div>
-    <div class="scan-progress" role="progressbar" :aria-label="t('检测进度')" :aria-valuenow="count" :aria-valuemin="0" :aria-valuemax="6"><span :style="{width:`${count/6*100}%`}" :class="{indeterminate:count===0&&!terminal}"></span></div>
+    <div class="scan-progress" role="progressbar" :aria-label="t('检测进度')" :aria-valuenow="count" :aria-valuemin="0" :aria-valuemax="rows.length"><span :style="{width:`${count/rows.length*100}%`}" :class="{indeterminate:count===0&&!terminal}"></span></div>
     <footer class="startup-actions" v-if="terminal&&!ready"><button class="button primary" @click="enter(true)">{{ t('前往配置') }}</button><button class="text-button" @click="enter()">{{ t('进入工作台') }}</button><button v-if="status==='failed'" class="text-button" @click="emit('retry')">{{ t('重新检测') }}</button></footer>
     <footer v-else class="startup-wait"><span>{{ t(ready?'即将进入工作台…':'正在检查安装与版本') }}</span><button v-if="elapsed>=8000&&!terminal" class="text-button" @click="enter()">{{ t('跳过等待，进入工作台') }}<Icon name="arrow" :size="13"/></button></footer>
   </main>

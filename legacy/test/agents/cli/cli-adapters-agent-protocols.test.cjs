@@ -58,6 +58,12 @@ function profileOutput(kind, stdout, sessionRef = '', requestedTransport = '') {
   const profile = resolveConnectorEventProfile(kind, transport)
   const accumulator = profile.createFinalOutputAccumulator(sessionRef)
   const bytes = Buffer.from(stdout)
+  if(profile.protocol==='acp'){
+    for(const line of stdout.trim().split(/\r?\n/)){
+      const record=JSON.parse(line)
+      accumulator.ingest(record.result || record)
+    }
+  }
   accumulator.capture?.(bytes)
   accumulator.write?.(bytes)
   return accumulator.end({ sessionRef })
@@ -1757,6 +1763,8 @@ process.stdout.write(JSON.stringify({ status: 'accepted', job_id: 'not-terminal'
 
 test('every supported built-in Agent produces an explicit completion outcome', () => {
   const outputs = {
+    cursor: fs.readFileSync(path.join(OUTPUT_FIXTURE_DIRECTORY,'cursor.jsonl'),'utf8'),
+    copilot: fs.readFileSync(path.join(OUTPUT_FIXTURE_DIRECTORY,'copilot.jsonl'),'utf8'),
     zcode: JSON.stringify({ response: 'Zcode reply', sessionId: 'zcode-session', projection: { status: 'idle' } }),
     codex: [
       JSON.stringify({ type: 'thread.started', thread_id: 'codex-session' }),
@@ -2053,6 +2061,8 @@ test('recorded fixtures cover every supported built-in output schema', () => {
     [...ALLOWED_KINDS].sort(),
   )
   const expectedText = {
+    cursor: 'Cursor fixture reply',
+    copilot: 'Copilot fixture reply',
     zcode: 'Zcode fixture reply',
     codex: 'Codex fixture reply',
     hermes: 'Hermes fixture reply',

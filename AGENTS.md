@@ -2,7 +2,7 @@
 
 - Preserve the original Meldwork source; this is an independent Qwork checkout.
 - Use TypeScript for new application logic; keep legacy runtime modules attributed and mark modifications.
-- Keep supported agent kinds constrained to Codex, Claude Code, WorkBuddy, Zcode, OpenClaw and Qwen Code.
+- Keep supported agent kinds constrained to Codex, Claude Code, WorkBuddy, Zcode, OpenClaw, Qwen Code, OpenCode, GitHub Copilot CLI and Cursor CLI.
 - Do not parse attachment contents in Qwork. Manage copies, paths and byte fingerprints; the CLI reads content.
 - Freeze run settings and parallel contexts; group display names must not enter prompts.
 - Never infer approval from missing receipts or apply approval to a changed candidate/file version.

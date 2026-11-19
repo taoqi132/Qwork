@@ -125,6 +125,7 @@ function childEnvironment(agent, workdir, options, platform) {
   if (agent.kind === 'opencode') {
     openCodeSafetyEnv.OPENCODE_PERMISSION = JSON.stringify({
       ...(options.sandbox !== 'workspace-write' ? JSON.parse(OPENCODE_READ_ONLY_PERMISSION) : {}),
+      ...(options.allowWeb === false ? { webfetch: 'deny', websearch: 'deny' } : {}),
       ...headlessPermissions,
     })
   }
@@ -136,7 +137,9 @@ function childEnvironment(agent, workdir, options, platform) {
   const source = { ...process.env, ...options.env }
   const controlled = Object.fromEntries(Object.entries(options.env || {}).filter(([key, value]) => (
     typeof value === 'string'
-      && (CONTROLLED_RUNTIME_ENV.test(key) || NETWORK_ENV_KEYS.includes(key))
+      && (CONTROLLED_RUNTIME_ENV.test(key) || NETWORK_ENV_KEYS.includes(key)
+        || (agent.kind === 'cursor' && key === 'CURSOR_API_KEY')
+        || (agent.kind === 'copilot' && key === 'COPILOT_GITHUB_TOKEN'))
       && !BLOCKED_RUNTIME_ENV.test(key)
   )))
   return {

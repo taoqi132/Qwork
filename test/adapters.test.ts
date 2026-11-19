@@ -52,6 +52,26 @@ for(const kind of AGENT_KINDS)test(`${kind}: launches a real local fixture proce
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'qwork-adapter-'));roots.push(root)
   const executable=path.join(root,`${kind}.cjs`)
   fs.writeFileSync(executable,`#!/usr/bin/env node\nprocess.stdin.resume();setTimeout(()=>{process.stdout.write(${JSON.stringify(output[kind]+'\n')});process.exit(0)},120)`)
+  if(['opencode','cursor','copilot'].includes(kind)){
+    fs.writeFileSync(executable,`#!/usr/bin/env node
+const send = value => console.log(JSON.stringify({jsonrpc:'2.0', ...value}))
+let authenticated=false
+require('node:readline').createInterface({input:process.stdin}).on('line', line=>{
+  const {id,method,params}=JSON.parse(line)
+  if(method==='initialize')send({id,result:{protocolVersion:1}})
+  if(method==='authenticate'){authenticated=params.methodId==='cursor_login';send({id,result:{}})}
+  if(method==='session/new'){
+    if(${JSON.stringify(kind)}==='cursor'&&!authenticated)process.exit(2)
+    send({id,result:{sessionId:'fixture'}})
+  }
+  if(method==='session/set_mode')send({id,result:{}})
+  if(method==='session/prompt'){
+    send({method:'session/update',params:{sessionId:'fixture',update:{sessionUpdate:'agent_message_chunk',content:{type:'text',text:'QWORK_OK'}}}})
+    send({id,result:{stopReason:'end_turn'}})
+  }
+})
+`)
+  }
   fs.chmodSync(executable,0o755)
   let injected:any={}
   if(kind==='openclaw')injected=nativeOpenClawOptions({storageRoot:root,workdir:root,runtime:{model:'fixture/model',provider:{id:'fixture',apiKey:'fixture-secret-not-a-real-key',baseUrl:'https://example.com/v1',api:'openai-completions',model:{id:'model',name:'fixture',input:['text'],contextWindow:8000,maxTokens:1000}}}})

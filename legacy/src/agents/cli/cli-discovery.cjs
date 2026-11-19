@@ -24,6 +24,8 @@ const AGENT_PROFILES = {
   mimo: { label: 'MiMo', commands: ['mimo'] },
   claude: { label: 'Claude', commands: ['claude'] },
   gemini: { label: 'Gemini', commands: ['gemini'] },
+  copilot: { label: 'GitHub Copilot', commands: ['copilot'] },
+  cursor: { label: 'Cursor', commands: ['cursor-agent', 'agent'] },
   opencode: { label: 'OpenCode', commands: ['opencode'] },
   qwen: { label: 'Qwen', commands: ['qwen'] },
   opencodereview: { label: 'OpenCodeReview', commands: ['ocr'] },
@@ -426,7 +428,7 @@ async function probeAgentCapabilities(kind, executable, options = {}) {
         incompatibilityProbe: probe.id,
       }
     }
-    if (probe.requiredText.some(value => !result.output.includes(value))) {
+    if (probe.requiredText.some(value => !result.output.includes(value)) || (probe.validateOutput && !probe.validateOutput(result.output))) {
       return {
         compatibilityState: 'incompatible',
         incompatibilityReason: 'LOCAL_AGENT_REQUIRED_CAPABILITY_MISSING',

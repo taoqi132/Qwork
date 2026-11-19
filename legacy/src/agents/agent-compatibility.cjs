@@ -1,6 +1,8 @@
 const VERSION_PATTERN = /\bv?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z][0-9A-Za-z.-]*))?(?:\+[0-9A-Za-z][0-9A-Za-z.-]*)?\b/
 const ANSI_PATTERN = /\x1b\[[0-?]*[ -\/]*[@-~]/g
 const AGENT_VERSION_IDENTITIES = Object.freeze({
+  copilot: [/\bcopilot\b/i],
+  cursor: [/\bcursor\b/i],
   codex: [/\bcodex(?:-cli)?\b/i],
   hermes: [/\bhermes(?:\s+agent)?\b/i],
   openclaw: [/\bopenclaw\b/i],
@@ -16,6 +18,8 @@ const AGENT_VERSION_IDENTITIES = Object.freeze({
   opencodereview: [/\bopen[-\s]?code[-\s]?review\b/i],
 })
 const AGENT_EXECUTABLE_NAMES = Object.freeze({
+  copilot: ['copilot'],
+  cursor: ['cursor-agent'],
   codex: ['codex'],
   hermes: ['hermes'],
   openclaw: ['openclaw'],
@@ -88,6 +92,9 @@ const AGENT_COMPATIBILITY = Object.freeze({
       '--output-format', '--approval-mode', '--resume', '--prompt', 'stream-json',
     ]),
   ]),
+  // Qwork: detect ACP capabilities across rolling CLI releases.
+  copilot: { probes: [probe('copilot-acp', ['--help'], ['--acp', '--stdio'])] },
+  cursor: { probes: [probe('cursor-acp', ['--help'], ['acp', '--mode'], text => /cursor/i.test(text))] },
   opencode: profile('1.18.9', '1.18.12', [
     probe('opencode-run', ['run', '--help'], [
       '--format', '--agent', '--session', '--file', 'json',
@@ -236,7 +243,7 @@ function assessAgentVersion(kind, rawVersion) {
     resolvedVersion,
     supportedVersionRange: contract?.supportedVersionRange || '',
   }
-  if (!contract || !resolvedVersion) {
+  if (!contract || !resolvedVersion || (!contract.exactVersion && !contract.minVersion)) {
     return {
       ...base,
       compatibilityState: 'unknown',

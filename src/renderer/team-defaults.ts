@@ -1,7 +1,7 @@
 import type {AgentInfo,AgentKind,Mode} from '../shared/types'
 
-export const MODERATOR_PRIORITY:AgentKind[]=['claude','codex','workbuddy','qwen','zcode','openclaw']
-export const OWNER_PRIORITY:AgentKind[]=['codex','claude','workbuddy','qwen','zcode','openclaw']
+export const MODERATOR_PRIORITY:AgentKind[]=['claude','codex','workbuddy','qwen','zcode','openclaw','opencode','copilot','cursor']
+export const OWNER_PRIORITY:AgentKind[]=['codex','claude','workbuddy','qwen','zcode','openclaw','opencode','copilot','cursor']
 
 function ranked(agents:AgentInfo[],priority:AgentKind[]):AgentKind[]{
   return agents.filter(a=>a.installed&&a.compatible&&a.credential!=='missing').slice().sort((a,b)=>

@@ -42,7 +42,7 @@ export async function runSmoke(window:BrowserWindow,directory:string,importFixtu
   if(process.argv.includes('--install-only')){
     discoveryFixture?.('ready','codex')
     await clickText('设置与 Agent')
-    await wait("document.querySelectorAll('.agent-setting-card').length===6")
+    await wait("document.querySelectorAll('.agent-setting-card').length===9")
     await wait("!!document.querySelector('.agent-setting-card:has([data-agent=workbuddy]) .install-cli-button:not(:disabled)')")
     if(await js("!!document.querySelector('.agent-setting-card:has([data-agent=codex]) .install-cli-button')"))throw new Error('Installed CLI offers redundant installation')
     if(!await js("document.querySelector('.agent-setting-card:has([data-agent=zcode]) .install-cli-button').disabled"))throw new Error('Zcode exposes an unverified install recipe')
@@ -66,26 +66,26 @@ export async function runSmoke(window:BrowserWindow,directory:string,importFixtu
     await clickText('圆桌讨论')
     await wait("!!document.querySelector('.group-dialog[open]')")
     await wait("document.querySelector('[data-member-id=workbuddy] select')?.selectedOptions[0]?.textContent.includes('沿用全局设置或 CLI 默认')")
-    for(const kind of ['codex','claude','workbuddy','zcode','openclaw','qwen']){
+    for(const kind of ['codex','claude','workbuddy','zcode','openclaw','qwen','opencode','copilot','cursor']){
       await js(`(()=>{const choice=document.querySelector('.agent-choice:has([data-agent=${kind}])');if(!choice.classList.contains('selected'))choice.click()})()`)
     }
-    for(const kind of ['codex','claude','workbuddy','zcode','qwen']){
+    for(const kind of ['codex','claude','workbuddy','zcode','qwen','opencode','copilot','cursor']){
       await js(`document.querySelector('.agent-choice-wrap:has([data-agent=${kind}]) .agent-copy').click()`)
     }
-    await wait("document.querySelectorAll('.member-model-row').length===11")
+    await wait("document.querySelectorAll('.member-model-row').length===17")
     await wait("['workbuddy','workbuddy-2'].every(id=>{const el=document.querySelector('[data-member-id='+id+'] select');return el?.value===''&&el.selectedOptions[0]?.textContent.includes('沿用全局设置或 CLI 默认')})")
     if(await js("document.querySelectorAll('.agent-copy').length!==0"))throw new Error('Third instance remains selectable')
-    await capture('members-11.png')
+    await capture('members-17.png')
     await clickText('创建群聊')
     await wait("!!document.querySelector('.composer textarea')")
     await clickText('群聊设置')
-    await wait("document.querySelectorAll('.group-dialog[open] .member-model-row').length===11")
+    await wait("document.querySelectorAll('.group-dialog[open] .member-model-row').length===17")
     await wait("['workbuddy','workbuddy-2'].every(id=>document.querySelector('[data-member-id='+id+'] select')?.selectedOptions[0]?.textContent.includes('沿用全局设置或 CLI 默认'))")
     await js("(()=>{const el=document.querySelector('[data-member-id=codex-2] input');el.value='fixture/second';el.dispatchEvent(new Event('input',{bubbles:true}));const owner=[...document.querySelectorAll('.advanced-fields label')].find(e=>e.textContent.includes('成果负责人')).querySelector('select');owner.value='codex-2';owner.dispatchEvent(new Event('change',{bubbles:true}))})()")
     await clickText('保存设置')
     await wait("!document.querySelector('.group-dialog')")
     const saved=await js("window.qwork.get().then(s=>s.groups[0])")
-    if(saved.agents.length!==11||saved.executor!=='codex-2'||saved.agents.find((a:any)=>a.id==='codex-2')?.model!=='fixture/second')throw new Error('Eleven-member settings did not persist')
+    if(saved.agents.length!==17||saved.executor!=='codex-2'||saved.agents.find((a:any)=>a.id==='codex-2')?.model!=='fixture/second')throw new Error('Seventeen-member settings did not persist')
     await clickText('群聊设置')
     await wait("document.querySelector('[data-member-id=codex-2] input')?.value==='fixture/second'")
     await js("(()=>{const el=document.querySelector('[data-member-id=codex-2] input');el.value='cancelled';el.dispatchEvent(new Event('input',{bubbles:true}))})()")
@@ -103,7 +103,7 @@ export async function runSmoke(window:BrowserWindow,directory:string,importFixtu
     await wait("!!document.querySelector('.composer textarea')")
     const second=await js("window.qwork.get().then(s=>s.groups[0])")
     if(second.agents.length!==2||second.agents.some((a:any)=>a.kind!=='codex'))throw new Error('Single-CLI two-member group was not created')
-    fs.writeFileSync(path.join(directory,'result.json'),JSON.stringify({ok:true,mockProvider:true,elevenMembers:true,editAndSave:true,cancelIsolated:true,singleCliTwoInstances:true}))
+    fs.writeFileSync(path.join(directory,'result.json'),JSON.stringify({ok:true,mockProvider:true,seventeenMembers:true,editAndSave:true,cancelIsolated:true,singleCliTwoInstances:true}))
     return
   }
   if(process.argv.includes('--startup-only')){
@@ -114,16 +114,16 @@ export async function runSmoke(window:BrowserWindow,directory:string,importFixtu
   if(discoveryFixture){
     discoveryFixture('searching')
     await wait("document.querySelector('.local-state')?.textContent.includes('正在查找本机 Agent')")
-    if(await js("document.querySelector('.local-state')?.textContent.includes('/6')"))throw new Error('Detection shows a premature agent count')
+    if(await js("document.querySelector('.local-state')?.textContent.includes('/9')"))throw new Error('Detection shows a premature agent count')
     await clickText('设置与 Agent')
-    await wait("document.querySelectorAll('.agent-setting-card .status-chip').length===6&&[...document.querySelectorAll('.agent-setting-card .status-chip')].every(e=>e.textContent.includes('查找中'))")
+    await wait("document.querySelectorAll('.agent-setting-card .status-chip').length===9&&[...document.querySelectorAll('.agent-setting-card .status-chip')].every(e=>e.textContent.includes('查找中'))")
     if(await js("document.querySelector('.agent-settings-grid')?.textContent.includes('未找到 CLI')"))throw new Error('Searching misreported an absent CLI')
     await capture('20-agent-searching.png')
     discoveryFixture('failed')
     await wait("document.querySelector('.local-state')?.textContent.includes('检测失败，点击重试')")
     await capture('21-agent-detection-failed.png')
     await js("document.querySelector('.local-state button').click()")
-    await wait("document.querySelector('.local-state')?.textContent.includes('6/6')")
+    await wait("document.querySelector('.local-state')?.textContent.includes('9/9')")
     if(await js("document.querySelector('.about-card')?.textContent.includes('基于 Meldwork')"))throw new Error('Old settings tagline remains')
     await clickText('工作台')
     await wait("!!document.querySelector('.mode-grid')")
@@ -243,7 +243,7 @@ export async function runSmoke(window:BrowserWindow,directory:string,importFixtu
   await wait("(()=>{const c=document.querySelector('.conversation-scroll'),r=document.querySelector('.agent-message[open]');const top=r.getBoundingClientRect().top-c.getBoundingClientRect().top;return top>=7&&Math.abs(c.scrollTop-Math.min(c.scrollTop+top-8,c.scrollHeight-c.clientHeight))<2})()")
 
   await clickText('设置与 Agent')
-  await wait("document.querySelectorAll('.agent-setting-card').length===6")
+  await wait("document.querySelectorAll('.agent-setting-card').length===9")
   await js("(()=>{const input=document.querySelector('.agent-setting-card input');input.value='fixture/model-test';input.dispatchEvent(new Event('input',{bubbles:true}))})()")
   await js("document.querySelector('.agent-setting-card .model-save-row button').click()")
   await wait("window.qwork.get().then(s=>s.settings.agentModels?.codex==='fixture/model-test')")
@@ -461,5 +461,5 @@ export async function runSmoke(window:BrowserWindow,directory:string,importFixtu
   await js("document.querySelector('.trace-drawer .dialog-header button').click()")
 
   if(process.argv.includes('--qwork-docs')){const {captureDocumentation}=await import('./documentation-screenshots');await captureDocumentation(window,directory)}
-  fs.writeFileSync(path.join(directory,'result.json'),JSON.stringify({ok:true,checks:['compact four-mode homepage','six agents','mode-first group wizard','advanced settings expanded','write consent','Enter sends','Ctrl+Enter inserts newline','all selected agents displayed','live active-agent status','automatic early consensus','file delivery','latest response expanded only','manual expansion','English language switch','Chinese language switch','original messages preserved','direct-chat group shortcut','settings','rename','delete records','duplicate member instances','per-instance frozen models','instance-only removal','direct chat has no duplicate','CLI model capability differences'],mockProvider:true},null,2))
+  fs.writeFileSync(path.join(directory,'result.json'),JSON.stringify({ok:true,checks:['compact four-mode homepage','nine agents','mode-first group wizard','advanced settings expanded','write consent','Enter sends','Ctrl+Enter inserts newline','all selected agents displayed','live active-agent status','automatic early consensus','file delivery','latest response expanded only','manual expansion','English language switch','Chinese language switch','original messages preserved','direct-chat group shortcut','settings','rename','delete records','duplicate member instances','per-instance frozen models','instance-only removal','direct chat has no duplicate','CLI model capability differences'],mockProvider:true},null,2))
 }

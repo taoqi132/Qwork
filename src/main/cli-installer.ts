@@ -5,7 +5,7 @@ const require=createRequire(path.join(__dirname,'../../package.json'))
 const {AgentInstaller,installRecipe,defaultFindCommand}=require('./legacy/src/agents/installer/agent-installer.cjs')
 const cli=require('./legacy/src/agents/cli/cli-adapters.cjs')
 export const INSTALL_HELP:Record<AgentKind|'node',string>={
- codex:'https://developers.openai.com/codex/cli/',claude:'https://code.claude.com/docs/en/setup',workbuddy:'https://www.codebuddy.cn/docs/cli/installation',openclaw:'https://docs.openclaw.ai/install',qwen:'https://github.com/QwenLM/qwen-code',zcode:'https://zcode.z.ai/',node:'https://nodejs.org/en/download'
+ opencode:'https://opencode.ai/docs/',copilot:'https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli',cursor:'https://cursor.com/docs/cli/installation',codex:'https://developers.openai.com/codex/cli/',claude:'https://code.claude.com/docs/en/setup',workbuddy:'https://www.codebuddy.cn/docs/cli/installation',openclaw:'https://docs.openclaw.ai/install',qwen:'https://github.com/QwenLM/qwen-code',zcode:'https://zcode.z.ai/',node:'https://nodejs.org/en/download'
 }
 export const INSTALL_ERRORS:Record<string,string>={
  INSTALL_AGENT_NODE_REQUIRED:'请先安装 Node.js（含 npm），重启 Qwork 后再安装 CLI。',INSTALL_AGENT_BUSY:'已有 CLI 正在安装，请等待或取消。',INSTALL_AGENT_ALREADY_INSTALLED:'已检测到 CLI，请重新检测并检查版本，无需重复安装。',INSTALL_AGENT_PLATFORM_UNSUPPORTED:'当前系统暂不支持快捷安装，请查看官方安装说明。',INSTALL_AGENT_UNSUPPORTED:'该 Agent 暂不支持快捷安装。',INSTALL_AGENT_INTEGRITY_FAILED:'安装包校验未通过或无法访问官方软件源，请查看官方说明。',INSTALL_AGENT_COMMAND_BLOCKED:'本机 npm 安装入口无法验证，请查看官方安装说明。',INSTALL_AGENT_VERIFY_FAILED:'安装进程已结束，但未检测到兼容的 CLI；请重新检测，必要时重启 Qwork。',INSTALL_AGENT_PROCESS_FAILED:'CLI 安装失败，请检查网络、Node.js 环境及目录权限，或查看官方安装说明。',INSTALL_AGENT_FAILED:'CLI 安装失败，请查看官方安装说明。'
