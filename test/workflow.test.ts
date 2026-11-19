@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -8,6 +8,7 @@ import { Store, within } from '../src/main/storage'
 import { Workflow } from '../src/main/workflow'
 import { parseReceipt } from '../src/main/receipts'
 import { groupSchema, sendSchema } from '../src/main/validation'
+import {finalAnswer} from '../src/renderer/final-answer'
 const roots:string[]=[]
 afterEach(()=>{for(const p of roots.splice(0))fs.rmSync(p,{recursive:true,force:true})})
 const receipt=(status:Receipt['status']='ready',extra:Partial<Receipt>={})=>({text:`有效成果正文\n[[QWORK_RECEIPT:${JSON.stringify({summary:'本阶段完成',status,issues:[],...extra})}]]`})
@@ -454,12 +455,12 @@ describe('result-centred orchestration',()=>{
   test('accepting unresolved discussion synthesizes and produces in one owner call',async()=>{
     const f=fixture({maxRounds:1,allowWrite:true,executeAfter:true},async i=>{
       if(i.prompt.includes('你是只读主持者'))return receipt('continue',{issues:['unresolved evidence']})
-      if(i.allowWrite){expect(i.prompt).toContain('用户已明确接受阶段风险继续');expect(i.prompt).toContain('在同一次调用中先整合');const out=i.prompt.match(/本次唯一成果目录：([^\n]+)/)![1];fs.writeFileSync(path.join(out,'result.md'),'result')}
+      if(i.allowWrite){expect(i.prompt).toContain('按本次风险决定继续');expect(i.prompt).toContain('在同一次调用中先整合');const out=i.prompt.match(/本次唯一成果目录：([^\n]+)/)![1];fs.writeFileSync(path.join(out,'result.md'),'result')}
       return receipt(version(i.prompt)?'approve':'ready',{reviewedVersion:version(i.prompt),verification:'read file'})
     })
     const r=f.start()
     for(let n=0;n<100&&!f.store.run(r.id).gate;n++)await new Promise(resolve=>setTimeout(resolve,5))
-    expect(f.store.run(r.id).gate?.kind).toBe('partial');f.engine.decide(r.id,'接受风险继续')
+    expect(f.store.run(r.id).gate?.kind).toBe('partial');f.engine.decide(r.id,'接受风险并制作')
     await f.engine.settled(r.id)
     expect(f.store.run(r.id).status).toBe('completed')
     expect(f.calls.filter(i=>i.allowWrite)).toHaveLength(1)
@@ -654,4 +655,77 @@ for(const mode of ['auto','sequential','parallel','review'] as const)test(`${mod
  expect(prompts.some(p=>p.includes('必须包含一个反例'))).toBe(true)
  expect(f.store.state.messages.some(m=>m.runId===r.id&&m.role==='user'&&m.text.includes('必须包含一个反例'))).toBe(true)
  expect(()=>f.engine.supplement(r.id,'too late')).toThrow()
+})
+
+
+test('risk decision can recheck, then times out only on the current decision',async()=>{
+  vi.useFakeTimers({toFake:['Date','setTimeout','clearTimeout']})
+  try{
+    const f=fixture({maxRounds:1,allowWrite:true,executeAfter:true},async i=>{
+      if(i.allowWrite)return receipt('continue',{issues:['fixture ends production']})
+      if(i.prompt.includes('你是只读主持者'))return receipt('continue',{issues:['open issue']})
+      return receipt()
+    })
+    const r=f.start(),run=f.store.run(r.id)
+    await vi.advanceTimersByTimeAsync(0)
+    const first=run.gate!
+    expect(first.deadline).toBe(Date.now()+60_000)
+    await vi.advanceTimersByTimeAsync(59_000)
+    f.engine.decide(r.id,'继续核实分歧',first.id)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(f.calls.filter(i=>i.prompt.includes('你是只读主持者'))).toHaveLength(2)
+    expect(run.gate?.id).not.toBe(first.id)
+    await vi.advanceTimersByTimeAsync(59_999)
+    expect(run.status).toBe('waiting')
+    expect(f.calls.some(i=>i.allowWrite)).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    await f.engine.settled(r.id)
+    expect(f.calls.filter(i=>i.allowWrite)).toHaveLength(1)
+    expect(f.store.state.messages.some(m=>m.role==='system'&&m.text.includes('按默认设置'))).toBe(true)
+    expect(f.store.state.messages.some(m=>m.role==='user'&&m.text.includes('接受风险并制作'))).toBe(false)
+  }finally{vi.useRealTimers()}
+})
+
+test('stopping a pending risk decision cancels automatic production',async()=>{
+  vi.useFakeTimers({toFake:['Date','setTimeout','clearTimeout']})
+  try{
+    const f=fixture({maxRounds:1,allowWrite:true,executeAfter:true},async()=>receipt('continue',{issues:['open']}))
+    const r=f.start()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(f.store.run(r.id).gate?.kind).toBe('partial')
+    await f.engine.stop(r.id)
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(f.store.run(r.id).status).toBe('cancelled')
+    expect(f.calls.some(i=>i.allowWrite)).toBe(false)
+  }finally{vi.useRealTimers()}
+})
+
+for(const trigger of ['review clarification','supplement'])test('text review keeps its delivery choice after '+trigger,async()=>{
+  let drafts=0,reviews=0,release!:()=>void
+  const held=new Promise<void>(resolve=>{release=resolve})
+  const f=fixture({mode:'review',allowWrite:true,maxRounds:1},async i=>{
+    if(!version(i.prompt)){
+      drafts++
+      if(trigger==='supplement'&&drafts===1)await held
+      return receipt()
+    }
+    reviews++
+    if(trigger==='review clarification'&&reviews===1)return receipt('needs-human',{questions:[{question:'受众是谁？',scope:'task'}]})
+    return receipt('approve',{reviewedVersion:version(i.prompt),verification:'已检查'})
+  })
+  const r=f.start('比较两个方案'),run=f.store.run(r.id)
+  f.engine.decide(r.id,'仅回答并检查',run.gate!.id)
+  if(trigger==='supplement'){
+    await vi.waitFor(()=>expect(drafts).toBe(1))
+    f.engine.supplement(r.id,'请注明来源')
+    release()
+  }else{
+    await vi.waitFor(()=>expect(run.gate?.kind).toBe('clarification'))
+    f.engine.decide(r.id,'管理层',run.gate!.id)
+  }
+  await vi.waitFor(()=>expect(run.status).toBe('completed'))
+  expect(drafts).toBe(2)
+  expect(f.calls.every(i=>!i.allowWrite)).toBe(true)
+  expect(finalAnswer(run,f.store.state.messages)?.contextRevision).toBe(1)
+  expect(run.delivery).toBe('text')
 })

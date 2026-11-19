@@ -73,7 +73,7 @@ Replies stream as Markdown. The latest answer opens automatically; opening an ea
 
 Critical missing requirements pause the task. Questions from the same batch are collected, duplicate wording is merged, and you can choose an answer or write your own. Local answers rerun the relevant member; changes to shared requirements refresh affected analysis and reviews.
 
-A desktop notification takes you back to the right task. Writing resumes only after your explicit submission, with existing drafts retained. Ordinary preferences use stated defaults rather than interrupting every task.
+A desktop notification takes you back to the right task. Clarification waits for your answer and keeps existing drafts. If a discussion reaches its round limit with open issues and file creation is enabled, choose whether to investigate further or accept the risks and create files. After 60 seconds, Qwork defaults to accepting the risks and proceeding.
 
 ![English clarification dialog with suggested answers and custom input](docs/screenshots/en-clarification.png)
 
@@ -169,7 +169,7 @@ scripts/        Build, test and screenshot tooling
 
 [Contributing](CONTRIBUTING.md)
 
-**Local validation for 0.1.5** · Type checking and the production build passed, along with 173 tests across 24 files and 25 Electron desktop checks using simulated agents. Live providers and individual deliverable formats still need use-case-specific verification.
+**Local validation for 0.1.5** · Type checking and the production build passed, along with 177 tests across 24 files and 25 Electron desktop checks using simulated agents. Live providers and individual deliverable formats still need use-case-specific verification.
 
 <details>
 <summary>Developer checks and screenshot generation</summary>

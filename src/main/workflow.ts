@@ -10,6 +10,10 @@ import {AgentFault,TeamUnavailable,classifyFault,monitoredInvoke,newAttempt,trac
 import type {InvokeInput} from '../shared/types'
 import { parseReceipt, receiptInstruction } from './receipts'
 
+const acceptRisk = '接受风险并制作'
+const investigate = '继续核实分歧'
+const riskDecisionMs = 60_000
+
 interface Turn {text:string;receipt:Receipt|null;memberId:MemberId;agent?:AgentKind}
 export class Workflow {
   private active=new Map<string,AbortController>()
@@ -118,6 +122,7 @@ export class Workflow {
     const run=this.store.run(runId)
     if(gateId&&gateId!==run.gate?.id)throw new Error('该问题已变化，请查看当前问题后再提交')
     if(!response.trim()||response.length>(run.gate?.kind==='clarification'?48000:4000))throw new Error('请输入本次决定，最多 4000 字')
+    if(run.gate?.kind==='partial'&&!run.gate.options?.includes(response.trim()))throw new Error('请选择如何处理未解决的分歧')
     const decide=this.decisions.get(runId);if(!decide)throw new Error('任务当前没有等待决定')
     decide(response.trim())
   }
@@ -201,14 +206,28 @@ export class Workflow {
   private async gate(run:Run,controller:AbortController,message:string,kind:'decision'|'stalled'|'partial'|'clarification'='decision',options?:string[],details?:{questions:ReturnType<typeof collectQuestions>;resumeWrite:boolean}){
     if(controller.signal.aborted)throw new Error('任务已停止')
     run.status='waiting';run.gate={id:randomUUID(),runId:run.id,message,kind,options,...details};run.summary=message
+    const deadline=kind==='partial'?Date.now()+riskDecisionMs:undefined
+    if(deadline)run.gate.deadline=deadline
+    let timedOut=false
     const response=await new Promise<string>((resolve,reject)=>{
-      const abort=()=>{this.decisions.delete(run.id);reject(new Error('任务已停止'))}
+      let timer:ReturnType<typeof setTimeout>|undefined
+      const cleanup=()=>{
+        clearTimeout(timer)
+        controller.signal.removeEventListener('abort',abort)
+        this.decisions.delete(run.id)
+      }
+      const abort=()=>{cleanup();reject(new Error('任务已停止'))}
+      const finish=(value:string)=>{cleanup();resolve(value)}
       controller.signal.addEventListener('abort',abort,{once:true})
-      this.decisions.set(run.id,value=>{controller.signal.removeEventListener('abort',abort);this.decisions.delete(run.id);resolve(value)})
+      this.decisions.set(run.id,finish)
+      if(deadline)timer=setTimeout(()=>{timedOut=true;finish(acceptRisk)},Math.max(0,deadline-Date.now()))
       this.flush()
     })
     run.status='running';delete run.gate
-    this.message(run,'user',`本次决定：${response}`);return response
+    if(controller.signal.aborted)throw new Error('任务已停止')
+    if(timedOut)this.message(run,'system','60 秒内未收到选择，按默认设置接受风险并制作。')
+    else this.message(run,'user',`本次决定：${response}`)
+    return response
   }
   private async clarify(run:Run,c:AbortController,turns:Turn[],write=false){
     if((run.clarificationBatches||0)>=3)throw new ClarificationLimit()
@@ -322,6 +341,7 @@ export class Workflow {
       if(!blocked.length)break
       if(clarifications>=2)throw new ClarificationLimit()
       const answer=await this.clarify(run,controller,blocked.map(item=>item.turn))
+      if(answer.taskWide&&run.stage==='checking'&&run.delivery==='text')throw new ReplanRequired()
       supplement+=answer.supplement
       const rerunAll=answer.taskWide||run.stage==='checking'
       if(rerunAll)finals.clear()
@@ -335,7 +355,16 @@ export class Workflow {
     return turns
   }
   private async execute(run:Run,c:AbortController){
-    for(let pass=0;pass<4;pass++){try{await this.executePlan(run,c);return}catch(error){if(!(error instanceof ReplanRequired))throw error}}
+    let replans=0
+    while(replans<4){
+      try{
+        // A manual recheck repeats the final round within its configured limit.
+        if(await this.executePlan(run,c)!=='investigate')return
+      }catch(error){
+        if(!(error instanceof ReplanRequired))throw error
+        replans++
+      }
+    }
     throw new ClarificationLimit()
   }
   private async executePlan(run:Run,c:AbortController){
@@ -348,10 +377,11 @@ export class Workflow {
     }
     if(run.mode==='review'){
       const explicitFileRequest=/(制作|生成|输出|导出|创建|修改|修复|美化|写入|保存|create|generate|export|save|edit|fix)[\s\S]{0,60}(文件|报告|文档|表格|代码|脚本|PPT|PDF|Word|Excel|HTML|Markdown|slides|document|file|report|code)/i.test(run.task)
-      if(!explicitFileRequest){
+      if(!run.delivery&&!explicitFileRequest){
         const choice=await this.gate(run,c,'当前是制作检查模式，但本次任务没有明确要求文件。请选择交付方式，避免将普通问题扩展成报告制作。','decision',['仅回答并检查','制作文件并检查'])
-        if(choice!=='制作文件并检查'){run.delivery='text';await this.answerAndReview(run,c);return}
+        run.delivery=choice==='制作文件并检查'?'files':'text'
       }
+      if(run.delivery==='text'){await this.answerAndReview(run,c);return}
       run.delivery='files';await this.produceAndReview(run,c,run.task,run.maxRounds);return
     }
     let candidate='',converged=false,previousIssues='',stalled=0
@@ -403,12 +433,13 @@ export class Workflow {
     if(!converged){
       run.status='partial';run.summary=run.mode==='parallel'?'已整理多方意见，仍有待解决问题':'已达到讨论上限，保留阶段方案'
       if(!group.executeAfter)return
-      await this.gate(run,c,'方案尚未满足收敛条件。若接受当前风险，请明确补充决定，继续制作；也可停止任务。','partial')
+      const choice=await this.gate(run,c,'讨论已达轮数上限，仍有分歧。请选择继续核实或接受风险并制作。','partial',[investigate,acceptRisk])
+      if(choice===investigate)return 'investigate' as const
     }
     if(!group.executeAfter){
       run.status=converged?'completed':'partial';run.summary=converged?'文字方案已完成':'阶段方案已保留';run.verification=run.mode==='parallel'?'独立意见已汇总，未经全员共识确认':run.degraded?'缩减团队的主持者已判断可推进并完成汇总；不代表原团队全员认可。':'主持者已判断可推进并完成汇总；不代表全员一致，尚未制作文件';return
     }
-    await this.produceAndReview(run,c,candidate||'用户已明确接受阶段风险继续。根据已有讨论和本次决定，整合方案并制作成果，保留未解决问题。',2)
+    await this.produceAndReview(run,c,candidate||'按本次风险决定继续。根据已有讨论和本次决定，整合方案并制作成果，保留未解决问题。',2)
   }
   private async inspect(run:Run,c:AbortController,producer:AgentMember,instruction:string,extra:string):Promise<Turn[]>{
     this.requireTeam(run)
